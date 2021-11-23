@@ -1,7 +1,6 @@
 package parsers
 
 import (
-	"context"
 	"testing"
 )
 
@@ -27,7 +26,7 @@ func TestJSONParser(t *testing.T) {
 }`
 
 	var input interface{}
-	if err := ParseJSON(context.Background(), []byte(sample), &input); err != nil {
+	if err := ParseJSON([]byte(sample), &input); err != nil {
 		t.Fatalf("parser should not have thrown an error: %v", err)
 	}
 

@@ -1,7 +1,6 @@
 package parsers
 
 import (
-	"context"
 	"fmt"
 	"io/ioutil"
 	"path"
@@ -21,7 +20,7 @@ func getExpectedResult(planFileName, expectedResultsFolder string) (TerraformSca
 		return nil, err
 	}
 	var expectedResult TerraformScanInput
-	err = ParseJSON(context.Background(), expectedResultJsonFile, &expectedResult)
+	err = ParseJSON(expectedResultJsonFile, &expectedResult)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +43,7 @@ func testPlanFile(t *testing.T, fileName, root string, wg *sync.WaitGroup) {
 			t.Errorf("%v, failed with file %s", err, fileName)
 		}
 		var planJson TerraformPlanJson
-		err = ParseJSON(context.Background(), file, &planJson)
+		err = ParseJSON(file, &planJson)
 		if err != nil {
 			t.Errorf("%v, failed with file %s", err, fileName)
 		}
