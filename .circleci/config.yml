@@ -1,0 +1,96 @@
+version: 2.1
+
+orbs:
+  snyk: snyk/snyk@1.1.1
+
+defaults: &defaults
+  working_directory: ~/snyk-iac-parsers
+
+commands:
+  build:
+    description: Build Golang CLI
+    steps:
+      - run:
+          name: Build
+          command: go build .
+      - persist_to_workspace:
+          root: ./ # relative to the working directory
+          paths:
+            - snyk-iac-parsers # the file we want to store
+
+jobs:
+  lint_and_format:
+    <<: *defaults
+    description: Lint & formatting
+    docker:
+      - image: golangci/golangci-lint:v1.42
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ~/snyk-iac-parsers
+      # Logs the version in our build logs, for posterity
+      - run: go version
+      - run:
+          name: "Ensure go.mod is tidy"
+          command: |
+            go mod tidy
+            git diff --exit-code go.mod go.sum
+      - run:
+          name: "Run golangci-lint"
+          command: golangci-lint run -v --timeout 10m
+      - run:
+          name: "Run gofmt"
+          command: "! gofmt -d -e . | read"
+  regression-test:
+    <<: *defaults
+    docker:
+      - image: circleci/golang:1.17
+    steps:
+      - checkout
+      - build
+      - run:
+          name: Run Golang tests
+          command: go test ./...
+  security-oss:
+    docker:
+      - image: cimg/go:1.17.2 
+    steps:
+      - checkout
+      - snyk/scan:
+          severity-threshold: medium 
+          monitor-on-build: true
+          project: ${CIRCLE_PROJECT_REPONAME}
+          organization: snyk-iac-group-seceng
+  security-code:
+    docker:
+      - image: cimg/go:1.17.2 
+    steps:
+      - checkout
+      - snyk/scan:
+          command: code test
+          severity-threshold: medium 
+          monitor-on-build: false
+          project: ${CIRCLE_PROJECT_REPONAME}
+          organization: snyk-iac-group-seceng
+workflows:
+  version: 2
+  test:
+    jobs:
+      - lint_and_format:
+          name: Lint & formatting
+#          filters:
+#            branches:
+#              ignore:
+#                - main
+#                - develop
+      - security-oss:
+          name: Snyk oss
+      - security-code:
+          name: Snyk code
+      - regression-test:
+          name: Regression Test
+          filters:
+            branches:
+              ignore:
+                - main
+                - develop
