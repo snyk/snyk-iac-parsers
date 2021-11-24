@@ -74,19 +74,9 @@ workflows:
     jobs:
       - lint_and_format:
           name: Lint & formatting
-#          filters:
-#            branches:
-#              ignore:
-#                - main
-#                - develop
       - security-oss:
           name: Snyk oss
       - security-code:
           name: Snyk code
       - regression-test:
           name: Regression Test
-#          filters:
-#            branches:
-#              ignore:
-#                - main
-#                - develop
