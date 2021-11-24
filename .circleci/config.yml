@@ -89,8 +89,8 @@ workflows:
           name: Snyk code
       - regression-test:
           name: Regression Test
-          filters:
-            branches:
-              ignore:
-                - main
-                - develop
+#          filters:
+#            branches:
+#              ignore:
+#                - main
+#                - develop
