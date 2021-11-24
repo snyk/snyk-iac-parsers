@@ -8,15 +8,11 @@ defaults: &defaults
 
 commands:
   build:
-    description: Build Golang CLI
+    description: Build Golang library
     steps:
       - run:
           name: Build
           command: go build ./...
-      - persist_to_workspace:
-          root: ./ # relative to the working directory
-          paths:
-            - snyk-iac-parsers # the file we want to store
 
 jobs:
   lint_and_format:
