@@ -12,7 +12,7 @@ commands:
     steps:
       - run:
           name: Build
-          command: go build .
+          command: go build ./...
       - persist_to_workspace:
           root: ./ # relative to the working directory
           paths:
