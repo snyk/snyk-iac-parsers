@@ -15,3 +15,23 @@ The following file formats are supported:
 - YAML: Parser's source can be found [here](https://github.com/snyk/snyk-iac-parsers/blob/main/pkg/yaml.go).
 
 All the formats above are transformed into JSON so that they can be used as input into tools such as [Open Policy Agent](https://www.openpolicyagent.org/). 
+
+## Development
+
+All code is contained within the `pkg` directory and each file has a corresponding test. Test fixtures are included in the `test/fixtures` directory.
+
+Tests can be run using the `go test` command:
+
+```bash
+% go test ./...
+```
+
+Before committing code should be formatted with `go fmt` and linted with `golangci-lint run`. The CircleCI runner will enforce this for each opened pull request.
+
+## Contributing
+
+This project is developed in open as a dependency of the [snyk/snyk-iac-rules](https://github.com/snyk/snyk-iac-rules) project. Should you wish to make a contribution please open a pull request against this repository with a clear description of the change with tests demonstrating the functionality. You will also need to agree to the [Contributor Agreement](./Contributor-Agreement.md) before the code can be accepted and merged.
+
+## License
+
+Available under the [Apache License, Version 2.0](./LICENSE.md)
