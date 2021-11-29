@@ -10,8 +10,8 @@ This project includes parsers that are used for Snyk Infrastructure As Code prod
 ## Supported formats
 
 The following file formats are supported:
-- HCL2: [Terraform](https://www.terraform.io/)'s default configuration format, parser's source can be found [here](http://https://github.com/snyk/snyk-iac-parsers/blob/main/pkg/hcl2.go)
-- Terraform Plan(JSON): [Terraform plan output in json](https://www.terraform.io/docs/internals/json-format.html) is parsed and ``resource_changes`` element is extracted. Parser's source can be found [here](https://github.com/snyk/snyk-iac-parsers/blob/main/pkg/terraform_plan.go)
-- YAML: Parser's source can be found [here](https://github.com/snyk/snyk-iac-parsers/blob/main/pkg/yaml.go)
+- HCL2: [Terraform](https://www.terraform.io/)'s default configuration format, parser's source can be found [here](http://https://github.com/snyk/snyk-iac-parsers/blob/main/pkg/hcl2.go).
+- Terraform Plan(JSON): [Terraform plan output in json](https://www.terraform.io/docs/internals/json-format.html) is parsed and ``resource_changes`` element is extracted. Parser's source can be found [here](https://github.com/snyk/snyk-iac-parsers/blob/main/pkg/terraform_plan.go).
+- YAML: Parser's source can be found [here](https://github.com/snyk/snyk-iac-parsers/blob/main/pkg/yaml.go).
 
 All the formats above are transformed into JSON so that they can be used as input into tools such as [Open Policy Agent](https://www.openpolicyagent.org/). 
