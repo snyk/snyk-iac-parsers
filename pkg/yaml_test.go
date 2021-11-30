@@ -1,7 +1,6 @@
 package parsers
 
 import (
-	"context"
 	"reflect"
 	"testing"
 )
@@ -50,7 +49,7 @@ nice: true`),
 			t.Run(test.name, func(t *testing.T) {
 				var unmarshalledConfigs interface{}
 
-				if err := ParseYAML(context.Background(), test.controlConfigs, &unmarshalledConfigs); err != nil {
+				if err := ParseYAML(test.controlConfigs, &unmarshalledConfigs); err != nil {
 					t.Errorf("errors unmarshalling: %v", err)
 				}
 

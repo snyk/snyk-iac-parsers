@@ -2,14 +2,12 @@ package parsers
 
 import (
 	"bytes"
-	"context"
-
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
 )
 
 // ParseYAML unmarshals YAML files and return parsed file content.
-func ParseYAML(_ context.Context, p []byte, v interface{}) error {
+func ParseYAML(p []byte, v interface{}) error {
 	subDocuments := separateSubDocuments(p)
 	if len(subDocuments) > 1 {
 		if err := unmarshalMultipleDocuments(subDocuments, v); err != nil {
