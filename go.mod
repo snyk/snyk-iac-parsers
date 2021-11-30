@@ -1,4 +1,4 @@
-module github.com/snyk/iac-parsers
+module github.com/snyk/snyk-iac-parsers
 
 go 1.17
 
