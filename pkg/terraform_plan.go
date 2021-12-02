@@ -1,6 +1,7 @@
 package parsers
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"reflect"
@@ -129,7 +130,7 @@ func isValidResourceActions(resourceAction ResourceActions, isFullScan bool) boo
 
 func ParseTerraformPlan(p []byte, v *interface{}) error {
 	var tfPlanJson TerraformPlanJson
-	if err := ParseJSON(p, &tfPlanJson); err != nil {
+	if err := json.Unmarshal(p, &tfPlanJson); err != nil {
 		return errors.Wrap(err, "failed to parse terraform-plan json payload")
 	}
 	// Currently being used only by Terraform Cloud integration
