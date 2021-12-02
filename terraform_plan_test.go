@@ -65,7 +65,7 @@ func testPlanFile(t *testing.T, fileName, root string, wg *sync.WaitGroup) {
 }
 
 func TestTerraformPlanParser(t *testing.T) {
-	root := "../test/fixtures/terraform-plans/"
+	root := "./testdata/terraform-plans/"
 	files, err := ioutil.ReadDir(root)
 	if err != nil {
 		t.Error(err)
