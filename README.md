@@ -18,8 +18,6 @@ All the formats above are transformed into JSON so that they can be used as inpu
 
 ## Development
 
-All code is contained within the `pkg` directory and each file has a corresponding test. Test fixtures are included in the `test/fixtures` directory.
-
 Tests can be run using the `go test` command:
 
 ```bash

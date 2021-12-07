@@ -1,6 +1,7 @@
 package parsers
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"path"
@@ -20,7 +21,7 @@ func getExpectedResult(planFileName, expectedResultsFolder string) (TerraformSca
 		return nil, err
 	}
 	var expectedResult TerraformScanInput
-	err = ParseJSON(expectedResultJsonFile, &expectedResult)
+	err = json.Unmarshal(expectedResultJsonFile, &expectedResult)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +44,7 @@ func testPlanFile(t *testing.T, fileName, root string, wg *sync.WaitGroup) {
 			t.Errorf("%v, failed with file %s", err, fileName)
 		}
 		var planJson TerraformPlanJson
-		err = ParseJSON(file, &planJson)
+		err = json.Unmarshal(file, &planJson)
 		if err != nil {
 			t.Errorf("%v, failed with file %s", err, fileName)
 		}
@@ -64,7 +65,7 @@ func testPlanFile(t *testing.T, fileName, root string, wg *sync.WaitGroup) {
 }
 
 func TestTerraformPlanParser(t *testing.T) {
-	root := "../test/fixtures/terraform-plans/"
+	root := "./testdata/terraform-plans/"
 	files, err := ioutil.ReadDir(root)
 	if err != nil {
 		t.Error(err)
