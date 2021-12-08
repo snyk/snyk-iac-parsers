@@ -30,5 +30,12 @@ func main() {
 	// TODO: stretch item - actually use this in the code (gopherjs)
 	fmt.Println(string(hclBytes))
 
-	parsedFile.
+	bc,_ := parsedFile.Body.(*hclsyntax.Body)
+	//fmt.Println(bc)
+	for _, block := range bc.Blocks {
+		//fmt.Println(block)
+		for _, att := range block.Body.Attributes {
+			fmt.Printf("%s, range: %s \n",att.Name, att.SrcRange)
+		}
+	}
 }
