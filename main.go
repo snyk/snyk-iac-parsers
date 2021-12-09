@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
-	"os"
-
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/tmccombs/hcl2json/convert"
+	"os"
+	"strings"
 )
 
 func main() {
@@ -32,14 +32,59 @@ func main() {
 
 	bc, _ := parsedFile.Body.(*hclsyntax.Body)
 	//fmt.Println(bc)
-	for _, block := range bc.Blocks {
-		//fmt.Println(block)
-		for _, att := range block.Body.Attributes {
-			fmt.Printf("%s, range: %s \n", att.Name, att.SrcRange)
-		}
-	}
+	//for _, block := range bc.Blocks {
+	//	fmt.Println(block.Type)
+	//	for _, att := range block.Body.Attributes {
+	//		fmt.Printf("%s, range: %s \n", att.Name, att.SrcRange)
+	//	}
+	//}
+
+	// input is gone
+	path := "resource.aws_redshift_cluster[denied].logging"
+	// TODO: going through the body a second time after hcl2json
+	lookup(bc, path)
 
 	// TODO: lookup function that looks for the fields in the msg/path and iterated through the body
+}
+
+func lookup(body *hclsyntax.Body, path string) {
+	pathDetails := strings.Split(path, ".")
+	// reminder: denied is the name of the resource
+	// aws_redshift_cluster[denied].logging -> aws_redshift_cluster.denied.logging
+	// TODO: check if Terraform supports more than two labels
+	//aws_redshift_cluster[denied][denied]
+	//aws_redshift_cluster[denied.denied]
+
+	for _, block := range body.Blocks {
+		if block.Type != pathDetails[0] {
+			continue
+		}
+
+		for i, label := range block.Labels {
+			// aws_redshift_cluster
+			if i == 0 && label != strings.Split(pathDetails[1], "[")[0] {
+				continue
+			}
+
+			// allowed/denied
+			a := strings.Split(pathDetails[1], "[")[1]
+			if i == 1 && label != a[0:len(a)-1] {
+				continue
+			}
+
+			if i == 1 {
+				// TODO: check block and attribute
+				for _, block2 := range block.Body.Blocks {
+					// aws_redshift_cluster
+					if block2.Type != pathDetails[2] {
+						continue
+					}
+
+					fmt.Println(block2.Body.SrcRange)
+				}
+			}
+		}
+	}
 }
 
 // snyk iac test -> resource.aws_redshift_cluster[allowed].encrypted
