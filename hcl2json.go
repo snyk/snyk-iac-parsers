@@ -4,18 +4,25 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/tmccombs/hcl2json/convert"
-	"os"
 	"strings"
 )
 
-func HCL2JSON() (string, error) {
-	filename := "test.tf"
+//func main() {
+//	res, _ := HCL2JSON()
+//	fmt.Println(res)
+//}
 
-	file, err := os.ReadFile(filename)
-	if err != nil {
-		return "", err
-	}
-	parsedFile, _ := hclsyntax.ParseConfig(file, filename, hcl.Pos{Line: 1, Column: 1})
+func HCL2JSON(file string) (string, error) {
+	filename := ""
+
+	// os systemcallls won't work with gopherjs
+	//file, err := os.ReadFile(filename)
+	//if err != nil {
+	//	return "", err
+	//}
+
+	// we won't be able to load whole folders because they use os.read
+	parsedFile, _ := hclsyntax.ParseConfig([]byte(file), filename, hcl.Pos{Line: 1, Column: 1})
 
 	var options convert.Options = convert.Options{
 		Simplify: false,
@@ -28,12 +35,22 @@ func HCL2JSON() (string, error) {
 
 	// TODO: stretch item - actually use this in the code (gopherjs)
 	return string(hclBytes), nil
-	//// input is gone
-	//path := "resource.aws_redshift_cluster[denied].logging"
-	//// TODO: going through the body a second time after hcl2json
-	//lookup(bc, path)
-	//
-	//// TODO: lookup function that looks for the fields in the msg/path and iterated through the body
+}
+
+//	path := "resource.aws_redshift_cluster[denied].logging"
+func LineNumber(file string, path string) (string, error) {
+	// TODO: they use the filename for the range, in case there are multiple files (but we only have one file)
+	filename := ""
+
+	// we won't be able to load whole folders because they use os.read
+	parsedFile, _ := hclsyntax.ParseConfig([]byte(file), filename, hcl.Pos{Line: 1, Column: 1})
+
+	// input is gone
+	bc, _ := parsedFile.Body.(*hclsyntax.Body)
+	// TODO: going through the body a second time after hcl2json
+	line := lookup(bc, path)
+
+	return line, nil
 }
 
 func lookup(body *hclsyntax.Body, path string) string {

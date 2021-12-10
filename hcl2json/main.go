@@ -7,21 +7,32 @@ import (
 	parsers "github.com/snyk/snyk-iac-parsers"
 )
 
-type SDK struct {
+type HCLJ2SONParser struct {
 	*js.Object
-	Parse func(...interface{}) *js.Object `js:"parse"`
+	File       string                          `js:"file"`
+	Path       string                          `js:"path"`
+	Parse      func(...interface{}) *js.Object `js:"parse"`
+	LineNumber func(...interface{}) *js.Object `js:"lineNumber"`
 }
 
-func (sdk *SDK) parse() (string, error) {
-	return parsers.HCL2JSON()
+func (o *HCLJ2SONParser) parse() (string, error) {
+	return parsers.HCL2JSON(o.File)
 }
 
-func newHCL2JSONParser() *js.Object {
-	sdk := SDK{Object: js.Global.Get("Object").New()}
-	sdk.Parse = jopher.Promisify(sdk.parse)
-	return sdk.Object
+func (o *HCLJ2SONParser) lineNumber() (string, error) {
+	return parsers.LineNumber(o.File, o.Path)
+}
+
+func newHCL2JSONParser(file string, path string) *js.Object {
+	o := HCLJ2SONParser{Object: js.Global.Get("Object").New()}
+	o.File = file
+	o.Path = path
+	o.Parse = jopher.Promisify(o.parse)
+	o.LineNumber = jopher.Promisify(o.lineNumber)
+	return o.Object
 }
 
 func main() {
 	js.Module.Get("exports").Set("newHCL2JSONParser", newHCL2JSONParser)
+	//	 module.exports = { newHCL2JSONParser: newHCL2JSONParser}
 }
