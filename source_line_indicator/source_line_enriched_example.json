@@ -1,0 +1,252 @@
+{
+  "_snyk_body_src": {
+    "Filename": "../goof-cloud-config-terraform-langfeatures-demo/variables3/test.tf",
+    "Start": {
+      "Line": 1,
+      "Column": 1,
+      "Byte": 0
+    },
+    "End": {
+      "Line": 26,
+      "Column": 1,
+      "Byte": 591
+    }
+  },
+  "resource": {
+    "aws_chime_voice_connector": {
+      "vc1": {
+        "_snyk_att_src_aws_region": {
+          "Filename": "../goof-cloud-config-terraform-langfeatures-demo/variables3/test.tf",
+          "Start": {
+            "Line": 4,
+            "Column": 3,
+            "Byte": 117
+          },
+          "End": {
+            "Line": 4,
+            "Column": 35,
+            "Byte": 149
+          }
+        },
+        "_snyk_att_src_name": {
+          "Filename": "../goof-cloud-config-terraform-langfeatures-demo/variables3/test.tf",
+          "Start": {
+            "Line": 2,
+            "Column": 3,
+            "Byte": 47
+          },
+          "End": {
+            "Line": 2,
+            "Column": 42,
+            "Byte": 86
+          }
+        },
+        "_snyk_att_src_require_encryption": {
+          "Filename": "../goof-cloud-config-terraform-langfeatures-demo/variables3/test.tf",
+          "Start": {
+            "Line": 3,
+            "Column": 3,
+            "Byte": 89
+          },
+          "End": {
+            "Line": 3,
+            "Column": 28,
+            "Byte": 114
+          }
+        },
+        "_snyk_body_src": {
+          "Filename": "../goof-cloud-config-terraform-langfeatures-demo/variables3/test.tf",
+          "Start": {
+            "Line": 1,
+            "Column": 44,
+            "Byte": 43
+          },
+          "End": {
+            "Line": 5,
+            "Column": 2,
+            "Byte": 151
+          }
+        },
+        "aws_region": "us-east-1",
+        "name": "connector-test-1",
+        "require_encryption": true
+      },
+      "vc2": {
+        "_snyk_att_src_aws_region": {
+          "Filename": "../goof-cloud-config-terraform-langfeatures-demo/variables3/test.tf",
+          "Start": {
+            "Line": 10,
+            "Column": 3,
+            "Byte": 270
+          },
+          "End": {
+            "Line": 10,
+            "Column": 35,
+            "Byte": 302
+          }
+        },
+        "_snyk_att_src_name": {
+          "Filename": "../goof-cloud-config-terraform-langfeatures-demo/variables3/test.tf",
+          "Start": {
+            "Line": 8,
+            "Column": 3,
+            "Byte": 200
+          },
+          "End": {
+            "Line": 8,
+            "Column": 42,
+            "Byte": 239
+          }
+        },
+        "_snyk_att_src_require_encryption": {
+          "Filename": "../goof-cloud-config-terraform-langfeatures-demo/variables3/test.tf",
+          "Start": {
+            "Line": 9,
+            "Column": 3,
+            "Byte": 242
+          },
+          "End": {
+            "Line": 9,
+            "Column": 28,
+            "Byte": 267
+          }
+        },
+        "_snyk_body_src": {
+          "Filename": "../goof-cloud-config-terraform-langfeatures-demo/variables3/test.tf",
+          "Start": {
+            "Line": 7,
+            "Column": 44,
+            "Byte": 196
+          },
+          "End": {
+            "Line": 11,
+            "Column": 2,
+            "Byte": 304
+          }
+        },
+        "aws_region": "us-west-2",
+        "name": "connector-test-2",
+        "require_encryption": true
+      }
+    },
+    "aws_chime_voice_connector_group": {
+      "group": {
+        "_snyk_att_src_name": {
+          "Filename": "../goof-cloud-config-terraform-langfeatures-demo/variables3/test.tf",
+          "Start": {
+            "Line": 14,
+            "Column": 3,
+            "Byte": 361
+          },
+          "End": {
+            "Line": 14,
+            "Column": 22,
+            "Byte": 380
+          }
+        },
+        "_snyk_body_src": {
+          "Filename": "../goof-cloud-config-terraform-langfeatures-demo/variables3/test.tf",
+          "Start": {
+            "Line": 13,
+            "Column": 52,
+            "Byte": 357
+          },
+          "End": {
+            "Line": 25,
+            "Column": 2,
+            "Byte": 590
+          }
+        },
+        "connector": [
+          {
+            "_snyk_att_src_priority": {
+              "Filename": "../goof-cloud-config-terraform-langfeatures-demo/variables3/test.tf",
+              "Start": {
+                "Line": 18,
+                "Column": 5,
+                "Byte": 458
+              },
+              "End": {
+                "Line": 18,
+                "Column": 27,
+                "Byte": 480
+              }
+            },
+            "_snyk_att_src_voice_connector_id": {
+              "Filename": "../goof-cloud-config-terraform-langfeatures-demo/variables3/test.tf",
+              "Start": {
+                "Line": 17,
+                "Column": 5,
+                "Byte": 400
+              },
+              "End": {
+                "Line": 17,
+                "Column": 58,
+                "Byte": 453
+              }
+            },
+            "_snyk_body_src": {
+              "Filename": "../goof-cloud-config-terraform-langfeatures-demo/variables3/test.tf",
+              "Start": {
+                "Line": 16,
+                "Column": 13,
+                "Byte": 394
+              },
+              "End": {
+                "Line": 19,
+                "Column": 4,
+                "Byte": 484
+              }
+            },
+            "priority": 1,
+            "voice_connector_id": "${aws_chime_voice_connector.vc1.id}"
+          },
+          {
+            "_snyk_att_src_priority": {
+              "Filename": "../goof-cloud-config-terraform-langfeatures-demo/variables3/test.tf",
+              "Start": {
+                "Line": 23,
+                "Column": 5,
+                "Byte": 562
+              },
+              "End": {
+                "Line": 23,
+                "Column": 27,
+                "Byte": 584
+              }
+            },
+            "_snyk_att_src_voice_connector_id": {
+              "Filename": "../goof-cloud-config-terraform-langfeatures-demo/variables3/test.tf",
+              "Start": {
+                "Line": 22,
+                "Column": 5,
+                "Byte": 504
+              },
+              "End": {
+                "Line": 22,
+                "Column": 58,
+                "Byte": 557
+              }
+            },
+            "_snyk_body_src": {
+              "Filename": "../goof-cloud-config-terraform-langfeatures-demo/variables3/test.tf",
+              "Start": {
+                "Line": 21,
+                "Column": 13,
+                "Byte": 498
+              },
+              "End": {
+                "Line": 24,
+                "Column": 4,
+                "Byte": 588
+              }
+            },
+            "priority": 3,
+            "voice_connector_id": "${aws_chime_voice_connector.vc2.id}"
+          }
+        ],
+        "name": "test-group"
+      }
+    }
+  }
+}

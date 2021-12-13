@@ -1,0 +1,31 @@
+{
+  "resource": {
+    "aws_chime_voice_connector": {
+      "vc1": {
+        "aws_region": "us-east-1",
+        "name": "connector-test-1",
+        "require_encryption": true
+      },
+      "vc2": {
+        "aws_region": "us-west-2",
+        "name": "connector-test-2",
+        "require_encryption": true
+      }
+    },
+    "aws_chime_voice_connector_group": {
+      "group": {
+        "connector": [
+          {
+            "priority": 1,
+            "voice_connector_id": "${aws_chime_voice_connector.vc1.id}"
+          },
+          {
+            "priority": 3,
+            "voice_connector_id": "${aws_chime_voice_connector.vc2.id}"
+          }
+        ],
+        "name": "test-group"
+      }
+    }
+  }
+}
