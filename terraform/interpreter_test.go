@@ -1,13 +1,21 @@
 package terraform
 
 import (
-	"github.com/hashicorp/hcl/v2/hclparse"
+	"log"
+	"os"
 	"testing"
 )
 
 
 
 func TestInterpreter_ProcessDirectory(t *testing.T) {
-	interpreter := Interpreter{parser: hclparse.NewParser()}
+	interpreter := NewInterpreter()
 	interpreter.ProcessDirectory("../../goof-cloud-config-terraform-langfeatures-demo/variables")
+	interpreter.BuildModule()
+	interpreter.ReadVariables(os.Environ(),[]rawFlag{})
+	bytes, err := Convert(interpreter.TerraformModule, Options{Simplify: true})
+	if err != nil {
+		log.Fatal(err)
+	}
+	println(string(bytes))
 }

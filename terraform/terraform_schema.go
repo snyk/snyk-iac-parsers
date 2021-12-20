@@ -53,28 +53,3 @@ var configFileSchema = &hcl.BodySchema{
 		},
 	},
 }
-
-var variableBlockSchema = &hcl.BodySchema{
-	Attributes: []hcl.AttributeSchema{
-		{
-			Name: "description",
-		},
-		{
-			Name: "default",
-		},
-		{
-			Name: "type",
-		},
-		{
-			Name: "sensitive",
-		},
-		{
-			Name: "nullable",
-		},
-	},
-	Blocks: []hcl.BlockHeaderSchema{
-		{
-			Type: "validation",
-		},
-	},
-}

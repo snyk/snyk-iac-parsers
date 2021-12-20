@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"io/ioutil"
 	"log"
@@ -12,6 +13,7 @@ import (
 
 type Interpreter struct {
 	parser *hclparse.Parser
+	TerraformModule *TerraformModule
 }
 
 type FileSuffix string
@@ -25,18 +27,27 @@ const (
 	AUTO_TF_VARS_JSON = ".auto.tfvars.json"
 )
 
+// DefaultVarsFilename is the default filename used for vars
+const DefaultVarsFilename = "terraform.tfvars"
+
 type TerraformModule struct {
-	Files []TerraformFile
+	Files      []*TerraformFile
+	blocks     hcl.Blocks
+	attributes hcl.Attributes
 }
 
 type TerraformFile struct {
-	Variables []*Variable
-	Locals    []*Local
-	Outputs   []*Output
-	Resources []*Resource
+	File *hcl.File
+	BodyContent *hcl.BodyContent
+	filename string
 }
 
-
+func NewInterpreter() Interpreter {
+	interpreter := Interpreter{}
+	interpreter.parser = hclparse.NewParser()
+	interpreter.TerraformModule = &TerraformModule{}
+	return interpreter
+}
 
 func (i *Interpreter) ProcessDirectory(dir string) {
 	files, err := ioutil.ReadDir(dir)
@@ -50,151 +61,63 @@ func (i *Interpreter) ProcessDirectory(dir string) {
 			continue
 		}
 		if strings.HasSuffix(file.Name(), HCL2) || strings.HasSuffix(file.Name(), TF_VARS) {
-			i.ParseHCLFile(filepath.Join(dir, file.Name()))
+			i.parseHCLFile(filepath.Join(dir, file.Name()))
 		} else if strings.HasSuffix(file.Name(), JSON) {
 			i.ParseJSONFile(filepath.Join(dir, file.Name()))
 		}
 
 	}
-	i.BuildModule()
 }
 
 func (i *Interpreter) BuildModule() {
 	for filename, hclFile := range i.parser.Files() {
-		content, diags := hclFile.Body.Content(configFileSchema)
-		if diags != nil {
-			if diags.HasErrors(){
-				log.Fatal(diags)
-			}else{
-				log.Printf("File: %s parsing issue: %s",filename, diags)
-			}
+
+		bodyContent, diags := hclFile.Body.Content(configFileSchema)
+		handleDiagnostics("Validation issue", diags, filename)
+
+		if !isOverrideFile(filename){
+			i.TerraformModule.addFile(hclFile,bodyContent,filename)
+		}else{
+			log.Fatal("File overrides not implemented yet!")
 		}
-		override:= isOverrideFile(filename)
-		file := TerraformFile{}
-
-		for _, block := range content.Blocks {
-			switch block.Type {
-
-			case "variable":
-				variable, cfgDiags := decodeVariableBlock(block, override)
-				diags = append(diags, cfgDiags...)
-				if variable != nil {
-					file.Variables = append(file.Variables, variable)
-				}
-
-			case "locals":
-				locals, defsDiags := decodeLocalsBlock(block)
-				diags = append(diags, defsDiags...)
-				file.Locals = append(file.Locals, locals...)
-
-			case "output":
-				output, cfgDiags := decodeOutputBlock(block, override)
-				diags = append(diags, cfgDiags...)
-				if output != nil {
-					file.Outputs = append(file.Outputs, output)
-				}
-
-			case "resource":
-				resource, cfgDiags := decodeResourceBlock(block)
-				diags = append(diags, cfgDiags...)
-				if resource != nil {
-					file.Resources = append(file.Resources, resource)
-				}
-
-			default:
-				// Should never happen because the above cases should be exhaustive
-				// for all block type names in our schema.
-				continue
-
-			}
-		}
-
 	}
 }
 
-//func (i *Interpreter) BuildModule() {
-//	for filename, hclFile := range i.parser.Files() {
-//		content, diags := hclFile.Body.Content(configFileSchema)
-//		if diags != nil {
-//			if diags.HasErrors(){
-//				log.Fatal(diags)
-//			}else{
-//				log.Printf("File: %s parsing issue: %s",filename, diags)
-//			}
-//		}
-//		override:= isOverrideFile(filename)
-//		file := TerraformFile{}
-//
-//		for _, block := range content.Blocks {
-//			switch block.Type {
-//
-//			case "variable":
-//				cfg, cfgDiags := decodeVariableBlock(block, override)
-//				diags = append(diags, cfgDiags...)
-//				if cfg != nil {
-//					file.Variables = append(file.Variables, cfg)
-//				}
-//
-//			case "locals":
-//				defs, defsDiags := decodeLocalsBlock(block)
-//				diags = append(diags, defsDiags...)
-//				file.Locals = append(file.Locals, defs...)
-//
-//			case "output":
-//				cfg, cfgDiags := decodeOutputBlock(block, override)
-//				diags = append(diags, cfgDiags...)
-//				if cfg != nil {
-//					file.Outputs = append(file.Outputs, cfg)
-//				}
-//
-//			case "module":
-//				cfg, cfgDiags := decodeModuleBlock(block, override)
-//				diags = append(diags, cfgDiags...)
-//				if cfg != nil {
-//					file.ModuleCalls = append(file.ModuleCalls, cfg)
-//				}
-//
-//			case "resource":
-//				cfg, cfgDiags := decodeResourceBlock(block)
-//				diags = append(diags, cfgDiags...)
-//				if cfg != nil {
-//					file.ManagedResources = append(file.ManagedResources, cfg)
-//				}
-//
-//			case "data":
-//				cfg, cfgDiags := decodeDataBlock(block)
-//				diags = append(diags, cfgDiags...)
-//				if cfg != nil {
-//					file.DataResources = append(file.DataResources, cfg)
-//				}
-//
-//			default:
-//				// Should never happen because the above cases should be exhaustive
-//				// for all block type names in our schema.
-//				continue
-//
-//			}
-//		}
-//
-//	}
-//}
+
+
+func  handleDiagnostics(issue string, diags hcl.Diagnostics, filename string) {
+	if diags != nil {
+		if diags.HasErrors() {
+			log.Fatal(diags)
+		} else {
+			log.Printf("%s, file: %s, %s", issue, filename, diags)
+		}
+	}
+}
+
+func (m *TerraformModule) addFile(hclFile *hcl.File,body *hcl.BodyContent,  filename string) {
+	m.Files = append(m.Files,&TerraformFile{File: hclFile,BodyContent: body,filename: filename})
+	// naively append every block without any logic
+	m.blocks = append(m.blocks,body.Blocks...)
+	// Merge attribu†es in top level
+	for key, attribute := range body.Attributes {
+		if _, ok := m.attributes[key]; ok {
+			//do something here
+			log.Fatalf("Attribute: %s already exists",key)
+		}else{
+			m.attributes[key] = attribute
+		}
+	}
+}
 
 
 func isOverrideFile(filename string) bool {
+	//TODO implement!!!
 	return false
 }
 
-//TODO handle overrides files
 
-/*Terraform loads variables in the following order, with later sources taking precedence over earlier ones:
-
-Environment variables
-The terraform.tfvars file, if present.
-The terraform.tfvars.json file, if present.
-Any *.auto.tfvars or *.auto.tfvars.json files, processed in lexical order of their filenames.
-Any -var and -var-file options on the command line, in the order they are provided. (This includes variables set by a Terraform Cloud workspace.)
-*/
-func (i *Interpreter) ParseHCLFile(filename string) {
+func (i *Interpreter) parseHCLFile(filename string) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		log.Fatal(err)
@@ -206,10 +129,20 @@ func (i *Interpreter) ParseHCLFile(filename string) {
 }
 
 func (i *Interpreter) ParseHCL(src []byte, filename string) {
-	f, diags := i.parser.ParseHCL(src, filename)
-	log.Printf("ok, %s, %s", f, diags)
+	_, diags := i.parser.ParseHCL(src, filename)
+	handleDiagnostics("Parsing issue", diags, filename)
 }
 
 func (i *Interpreter) ParseJSONFile(filename string) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Just keep the file name, instead of the whole path
+	_, filename = path.Split(filename)
+	i.ParseJSON(data, filename)
+}
+
+func (i *Interpreter) ParseJSON(src []byte, filename string) {
 	log.Fatal("Not implemented")
 }
