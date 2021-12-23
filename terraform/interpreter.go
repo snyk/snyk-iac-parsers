@@ -12,7 +12,7 @@ import (
 )
 
 type Interpreter struct {
-	parser *hclparse.Parser
+	parser          *hclparse.Parser
 	TerraformModule *TerraformModule
 }
 
@@ -29,18 +29,6 @@ const (
 
 // DefaultVarsFilename is the default filename used for vars
 const DefaultVarsFilename = "terraform.tfvars"
-
-type TerraformModule struct {
-	Files      []*TerraformFile
-	blocks     hcl.Blocks
-	attributes hcl.Attributes
-}
-
-type TerraformFile struct {
-	File *hcl.File
-	BodyContent *hcl.BodyContent
-	filename string
-}
 
 func NewInterpreter() Interpreter {
 	interpreter := Interpreter{}
@@ -69,23 +57,40 @@ func (i *Interpreter) ProcessDirectory(dir string) {
 	}
 }
 
-func (i *Interpreter) BuildModule() {
+func (i *Interpreter) BuildModule() *TerraformModule {
 	for filename, hclFile := range i.parser.Files() {
-
-		bodyContent, diags := hclFile.Body.Content(configFileSchema)
-		handleDiagnostics("Validation issue", diags, filename)
-
-		if !isOverrideFile(filename){
-			i.TerraformModule.addFile(hclFile,bodyContent,filename)
-		}else{
-			log.Fatal("File overrides not implemented yet!")
+		var bodyContent *hcl.BodyContent
+		var diags hcl.Diagnostics
+		if strings.HasSuffix(filename, TF_VARS) || strings.HasSuffix(filename, TF_VARS_JSON) {
+			bodyContent, _, _ = hclFile.Body.PartialContent(&hcl.BodySchema{
+				Blocks: []hcl.BlockHeaderSchema{
+					{
+						Type:       "variable",
+						LabelNames: []string{"name"},
+					},
+				},
+			})
+			i.addFileToModule(filename, hclFile, bodyContent, false)
+		} else {
+			bodyContent, diags = hclFile.Body.Content(configFileSchema)
+			//TODO There might be var files with none standard name
+			handleDiagnostics("Validation issue", diags, filename)
+			i.addFileToModule(filename, hclFile, bodyContent, true)
 		}
+
+	}
+	return i.TerraformModule
+}
+
+func (i *Interpreter) addFileToModule(filename string, hclFile *hcl.File, bodyContent *hcl.BodyContent, isConfig bool) {
+	if !isOverrideFile(filename) {
+		i.TerraformModule.addFile(hclFile, bodyContent, filename, isConfig)
+	} else {
+		log.Fatal("File overrides not implemented yet!")
 	}
 }
 
-
-
-func  handleDiagnostics(issue string, diags hcl.Diagnostics, filename string) {
+func handleDiagnostics(issue string, diags hcl.Diagnostics, filename string) {
 	if diags != nil {
 		if diags.HasErrors() {
 			log.Fatal(diags)
@@ -95,27 +100,10 @@ func  handleDiagnostics(issue string, diags hcl.Diagnostics, filename string) {
 	}
 }
 
-func (m *TerraformModule) addFile(hclFile *hcl.File,body *hcl.BodyContent,  filename string) {
-	m.Files = append(m.Files,&TerraformFile{File: hclFile,BodyContent: body,filename: filename})
-	// naively append every block without any logic
-	m.blocks = append(m.blocks,body.Blocks...)
-	// Merge attribu†es in top level
-	for key, attribute := range body.Attributes {
-		if _, ok := m.attributes[key]; ok {
-			//do something here
-			log.Fatalf("Attribute: %s already exists",key)
-		}else{
-			m.attributes[key] = attribute
-		}
-	}
-}
-
-
 func isOverrideFile(filename string) bool {
 	//TODO implement!!!
 	return false
 }
-
 
 func (i *Interpreter) parseHCLFile(filename string) {
 	data, err := os.ReadFile(filename)

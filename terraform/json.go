@@ -12,8 +12,27 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
+type variableMap map[string]cty.Value
+
 type Options struct {
-	Simplify bool
+	Simplify    bool
+	ContextVars HclEvalContextVars
+}
+
+type HclEvalContextVars struct {
+	Val variableMap
+}
+
+func NewHclEvalContextVars() HclEvalContextVars {
+	return HclEvalContextVars{Val: make(variableMap)}
+}
+
+func (h *HclEvalContextVars) addVars(vars variableMap) {
+	h.Val["var"] = cty.ObjectVal(vars)
+}
+
+func (h *HclEvalContextVars) addLocals(locals variableMap) {
+	h.Val["local"] = cty.ObjectVal(locals)
 }
 
 func Convert(module *TerraformModule, options Options) ([]byte, error) {
@@ -36,12 +55,14 @@ func convertFiles(module *TerraformModule, options Options) (jsonObj, error) {
 	c := converter{module: module, options: options}
 	out := make(jsonObj)
 	for _, file := range module.Files {
-		body := file.File.Body.(*hclsyntax.Body)
+		if file.isConfig {
+			body := file.File.Body.(*hclsyntax.Body)
 
-		c.convertBody(body,file.File ,out)
+			c.convertBody(body, file.File, out)
+		}
 	}
 
-	return out,nil
+	return out, nil
 }
 
 type converter struct {
@@ -49,7 +70,7 @@ type converter struct {
 	options Options
 }
 
-func (c *converter) rangeSource(r hcl.Range,file *hcl.File) string {
+func (c *converter) rangeSource(r hcl.Range, file *hcl.File) string {
 	// for some reason the range doesn't include the ending paren, so
 	// check if the next character is an ending paren, and include it if it is.
 	end := r.End.Byte
@@ -59,20 +80,20 @@ func (c *converter) rangeSource(r hcl.Range,file *hcl.File) string {
 	return string(file.Bytes[r.Start.Byte:end])
 }
 
-func (c *converter) convertBody(body *hclsyntax.Body,file *hcl.File, out jsonObj) (jsonObj, error) {
+func (c *converter) convertBody(body *hclsyntax.Body, file *hcl.File, out jsonObj) (jsonObj, error) {
 	var err error
-	if out == nil{
+	if out == nil {
 		out = make(jsonObj)
 	}
 	for key, value := range body.Attributes {
-		out[key], err = c.convertExpression(value.Expr,file)
+		out[key], err = c.convertExpression(value.Expr, file)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	for _, block := range body.Blocks {
-		err = c.convertBlock(block, out,file)
+		err = c.convertBlock(block, out, file)
 		if err != nil {
 			return nil, err
 		}
@@ -81,10 +102,10 @@ func (c *converter) convertBody(body *hclsyntax.Body,file *hcl.File, out jsonObj
 	return out, nil
 }
 
-func (c *converter) convertBlock(block *hclsyntax.Block, out jsonObj,file *hcl.File) error {
+func (c *converter) convertBlock(block *hclsyntax.Block, out jsonObj, file *hcl.File) error {
 	var key string = block.Type
 
-	value, err := c.convertBody(block.Body,file,nil)
+	value, err := c.convertBody(block.Body, file, nil)
 	if err != nil {
 		return err
 	}
@@ -118,9 +139,11 @@ func (c *converter) convertBlock(block *hclsyntax.Block, out jsonObj,file *hcl.F
 	return nil
 }
 
-func (c *converter) convertExpression(expr hclsyntax.Expression,file *hcl.File) (interface{}, error) {
+func (c *converter) convertExpression(expr hclsyntax.Expression, file *hcl.File) (interface{}, error) {
 	if c.options.Simplify {
-		value, err := expr.Value(&evalContext)
+		context := (&evalContext).NewChild()
+		context.Variables = c.options.ContextVars.Val
+		value, err := expr.Value(context)
 		if err == nil {
 			return ctyjson.SimpleJSONValue{Value: value}, nil
 		}
@@ -130,15 +153,15 @@ func (c *converter) convertExpression(expr hclsyntax.Expression,file *hcl.File) 
 	case *hclsyntax.LiteralValueExpr:
 		return ctyjson.SimpleJSONValue{Value: value.Val}, nil
 	case *hclsyntax.UnaryOpExpr:
-		return c.convertUnary(value,file)
+		return c.convertUnary(value, file)
 	case *hclsyntax.TemplateExpr:
-		return c.convertTemplate(value,file)
+		return c.convertTemplate(value, file)
 	case *hclsyntax.TemplateWrapExpr:
-		return c.convertExpression(value.Wrapped,file)
+		return c.convertExpression(value.Wrapped, file)
 	case *hclsyntax.TupleConsExpr:
 		var list []interface{}
 		for _, ex := range value.Exprs {
-			elem, err := c.convertExpression(ex,file)
+			elem, err := c.convertExpression(ex, file)
 			if err != nil {
 				return nil, err
 			}
@@ -148,27 +171,27 @@ func (c *converter) convertExpression(expr hclsyntax.Expression,file *hcl.File) 
 	case *hclsyntax.ObjectConsExpr:
 		m := make(jsonObj)
 		for _, item := range value.Items {
-			key, err := c.convertKey(item.KeyExpr,file)
+			key, err := c.convertKey(item.KeyExpr, file)
 			if err != nil {
 				return nil, err
 			}
-			m[key], err = c.convertExpression(item.ValueExpr,file)
+			m[key], err = c.convertExpression(item.ValueExpr, file)
 			if err != nil {
 				return nil, err
 			}
 		}
 		return m, nil
 	default:
-		return c.wrapExpr(expr,file), nil
+		return c.wrapExpr(expr, file), nil
 	}
 }
 
-func (c *converter) convertUnary(v *hclsyntax.UnaryOpExpr,file *hcl.File) (interface{}, error) {
+func (c *converter) convertUnary(v *hclsyntax.UnaryOpExpr, file *hcl.File) (interface{}, error) {
 	_, isLiteral := v.Val.(*hclsyntax.LiteralValueExpr)
 	if !isLiteral {
 		// If the expression after the operator isn't a literal, fall back to
 		// wrapping the expression with ${...}
-		return c.wrapExpr(v,file), nil
+		return c.wrapExpr(v, file), nil
 	}
 	val, err := v.Value(nil)
 	if err != nil {
@@ -177,7 +200,7 @@ func (c *converter) convertUnary(v *hclsyntax.UnaryOpExpr,file *hcl.File) (inter
 	return ctyjson.SimpleJSONValue{Value: val}, nil
 }
 
-func (c *converter) convertTemplate(t *hclsyntax.TemplateExpr,file *hcl.File) (string, error) {
+func (c *converter) convertTemplate(t *hclsyntax.TemplateExpr, file *hcl.File) (string, error) {
 	if t.IsStringLiteral() {
 		// safe because the value is just the string
 		v, err := t.Value(nil)
@@ -188,7 +211,7 @@ func (c *converter) convertTemplate(t *hclsyntax.TemplateExpr,file *hcl.File) (s
 	}
 	var builder strings.Builder
 	for _, part := range t.Parts {
-		s, err := c.convertStringPart(part,file)
+		s, err := c.convertStringPart(part, file)
 		if err != nil {
 			return "", err
 		}
@@ -197,7 +220,7 @@ func (c *converter) convertTemplate(t *hclsyntax.TemplateExpr,file *hcl.File) (s
 	return builder.String(), nil
 }
 
-func (c *converter) convertStringPart(expr hclsyntax.Expression,file *hcl.File) (string, error) {
+func (c *converter) convertStringPart(expr hclsyntax.Expression, file *hcl.File) (string, error) {
 	switch v := expr.(type) {
 	case *hclsyntax.LiteralValueExpr:
 		s, err := ctyconvert.Convert(v.Val, cty.String)
@@ -206,41 +229,41 @@ func (c *converter) convertStringPart(expr hclsyntax.Expression,file *hcl.File) 
 		}
 		return s.AsString(), nil
 	case *hclsyntax.TemplateExpr:
-		return c.convertTemplate(v,file)
+		return c.convertTemplate(v, file)
 	case *hclsyntax.TemplateWrapExpr:
-		return c.convertStringPart(v.Wrapped,file)
+		return c.convertStringPart(v.Wrapped, file)
 	case *hclsyntax.ConditionalExpr:
-		return c.convertTemplateConditional(v,file)
+		return c.convertTemplateConditional(v, file)
 	case *hclsyntax.TemplateJoinExpr:
-		return c.convertTemplateFor(v.Tuple.(*hclsyntax.ForExpr),file)
+		return c.convertTemplateFor(v.Tuple.(*hclsyntax.ForExpr), file)
 	default:
 		// treating as an embedded expression
-		return c.wrapExpr(expr,file), nil
+		return c.wrapExpr(expr, file), nil
 	}
 }
 
-func (c *converter) convertKey(keyExpr hclsyntax.Expression,file *hcl.File) (string, error) {
+func (c *converter) convertKey(keyExpr hclsyntax.Expression, file *hcl.File) (string, error) {
 	// a key should never have dynamic input
 	if k, isKeyExpr := keyExpr.(*hclsyntax.ObjectConsKeyExpr); isKeyExpr {
 		keyExpr = k.Wrapped
 		if _, isTraversal := keyExpr.(*hclsyntax.ScopeTraversalExpr); isTraversal {
-			return c.rangeSource(keyExpr.Range(),file), nil
+			return c.rangeSource(keyExpr.Range(), file), nil
 		}
 	}
-	return c.convertStringPart(keyExpr,file)
+	return c.convertStringPart(keyExpr, file)
 }
 
-func (c *converter) convertTemplateConditional(expr *hclsyntax.ConditionalExpr,file *hcl.File) (string, error) {
+func (c *converter) convertTemplateConditional(expr *hclsyntax.ConditionalExpr, file *hcl.File) (string, error) {
 	var builder strings.Builder
 	builder.WriteString("%{if ")
-	builder.WriteString(c.rangeSource(expr.Condition.Range(),file))
+	builder.WriteString(c.rangeSource(expr.Condition.Range(), file))
 	builder.WriteString("}")
-	trueResult, err := c.convertStringPart(expr.TrueResult,file)
+	trueResult, err := c.convertStringPart(expr.TrueResult, file)
 	if err != nil {
 		return "", nil
 	}
 	builder.WriteString(trueResult)
-	falseResult, err := c.convertStringPart(expr.FalseResult,file)
+	falseResult, err := c.convertStringPart(expr.FalseResult, file)
 	if len(falseResult) > 0 {
 		builder.WriteString("%{else}")
 		builder.WriteString(falseResult)
@@ -250,7 +273,7 @@ func (c *converter) convertTemplateConditional(expr *hclsyntax.ConditionalExpr,f
 	return builder.String(), nil
 }
 
-func (c *converter) convertTemplateFor(expr *hclsyntax.ForExpr,file *hcl.File) (string, error) {
+func (c *converter) convertTemplateFor(expr *hclsyntax.ForExpr, file *hcl.File) (string, error) {
 	var builder strings.Builder
 	builder.WriteString("%{for ")
 	if len(expr.KeyVar) > 0 {
@@ -259,9 +282,9 @@ func (c *converter) convertTemplateFor(expr *hclsyntax.ForExpr,file *hcl.File) (
 	}
 	builder.WriteString(expr.ValVar)
 	builder.WriteString(" in ")
-	builder.WriteString(c.rangeSource(expr.CollExpr.Range(),file))
+	builder.WriteString(c.rangeSource(expr.CollExpr.Range(), file))
 	builder.WriteString("}")
-	templ, err := c.convertStringPart(expr.ValExpr,file)
+	templ, err := c.convertStringPart(expr.ValExpr, file)
 	if err != nil {
 		return "", err
 	}
@@ -271,6 +294,6 @@ func (c *converter) convertTemplateFor(expr *hclsyntax.ForExpr,file *hcl.File) (
 	return builder.String(), nil
 }
 
-func (c *converter) wrapExpr(expr hclsyntax.Expression,file *hcl.File) string {
-	return "${" + c.rangeSource(expr.Range(),file) + "}"
+func (c *converter) wrapExpr(expr hclsyntax.Expression, file *hcl.File) string {
+	return "${" + c.rangeSource(expr.Range(), file) + "}"
 }

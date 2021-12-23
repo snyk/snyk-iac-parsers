@@ -6,14 +6,15 @@ import (
 	"testing"
 )
 
-
-
 func TestInterpreter_ProcessDirectory(t *testing.T) {
 	interpreter := NewInterpreter()
 	interpreter.ProcessDirectory("../../goof-cloud-config-terraform-langfeatures-demo/variables")
 	interpreter.BuildModule()
-	interpreter.ReadVariables(os.Environ(),[]rawFlag{})
-	bytes, err := Convert(interpreter.TerraformModule, Options{Simplify: true})
+	variables, _ := interpreter.ParseVariables(os.Environ(), []rawFlag{})
+	merged := interpreter.TerraformModule.MergeVariables(variables)
+	context := NewHclEvalContextVars()
+	context.addVars(merged)
+	bytes, err := Convert(interpreter.TerraformModule, Options{Simplify: true, ContextVars: context})
 	if err != nil {
 		log.Fatal(err)
 	}

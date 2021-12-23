@@ -5,6 +5,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
+	"log"
 	"strings"
 )
 
@@ -16,6 +17,16 @@ type InputValue struct {
 	// populated for other source types, and so should not be used.
 	SourceRange SourceRange
 }
+
+type SourceRange struct {
+	Filename   string
+	Start, End SourcePos
+}
+
+type SourcePos struct {
+	Line, Column, Byte int
+}
+
 // ValueSourceType describes what broad category of source location provided
 // a particular value.
 type ValueSourceType rune
@@ -58,6 +69,7 @@ const (
 	// a caller to Context.SetVariable after the context was constructed.
 	ValueFromCaller ValueSourceType = 'S'
 )
+
 // VarEnvPrefix is the prefix for environment variables that represent values
 // for root module input variables.
 const VarEnvPrefix = "TF_VAR_"
@@ -69,9 +81,8 @@ type UnparsedVariableValue interface {
 	//
 	// If error diagnostics are returned, the resulting value may be invalid
 	// or incomplete.
-	ParseVariableValue(mode VariableParsingMode) (*InputValue, Diagnostics)
+	ParseVariableValue(mode VariableParsingMode) (*InputValue, hcl.Diagnostics)
 }
-
 
 type unparsedVariableValueString struct {
 	str        string
@@ -79,17 +90,14 @@ type unparsedVariableValueString struct {
 	sourceType ValueSourceType
 }
 
-func (v unparsedVariableValueString) ParseVariableValue(mode VariableParsingMode) (*InputValue, Diagnostics) {
-
-	var diags Diagnostics
+func (v unparsedVariableValueString) ParseVariableValue(mode VariableParsingMode) (*InputValue, hcl.Diagnostics) {
 
 	val, hclDiags := mode.Parse(v.name, v.str)
-	diags = diags.Append(hclDiags)
 
 	return &InputValue{
 		Value:      val,
 		SourceType: v.sourceType,
-	}, diags
+	}, hclDiags
 }
 
 // unparsedVariableValueLiteral is a backend.UnparsedVariableValue
@@ -100,10 +108,8 @@ type unparsedVariableValueExpression struct {
 	sourceType ValueSourceType
 }
 
-func (v unparsedVariableValueExpression) ParseVariableValue(mode VariableParsingMode) (*InputValue, Diagnostics) {
-	var diags Diagnostics
+func (v unparsedVariableValueExpression) ParseVariableValue(mode VariableParsingMode) (*InputValue, hcl.Diagnostics) {
 	val, hclDiags := v.expr.Value(nil) // nil because no function calls or variable references are allowed here
-	diags = diags.Append(hclDiags)
 
 	rng := SourceRangeFromHCL(v.expr.Range())
 
@@ -111,7 +117,23 @@ func (v unparsedVariableValueExpression) ParseVariableValue(mode VariableParsing
 		Value:       val,
 		SourceType:  v.sourceType,
 		SourceRange: rng,
-	}, diags
+	}, hclDiags
+}
+
+func SourceRangeFromHCL(hclRange hcl.Range) SourceRange {
+	return SourceRange{
+		Filename: hclRange.Filename,
+		Start: SourcePos{
+			Line:   hclRange.Start.Line,
+			Column: hclRange.Start.Column,
+			Byte:   hclRange.Start.Byte,
+		},
+		End: SourcePos{
+			Line:   hclRange.End.Line,
+			Column: hclRange.End.Column,
+			Byte:   hclRange.End.Byte,
+		},
+	}
 }
 
 type rawFlag struct {
@@ -119,8 +141,24 @@ type rawFlag struct {
 	Value string
 }
 
-func (i *Interpreter) ReadVariables(env []string,rawFlags []rawFlag ) (map[string]UnparsedVariableValue,Diagnostics) {
-	var diags Diagnostics
+func (i *Interpreter) ParseVariables(env []string, rawFlags []rawFlag) (map[string]*InputValue, hcl.Diagnostics) {
+	ret := map[string]*InputValue{}
+
+	variables, diags := i.ProcessVariables(env, rawFlags)
+	//TODO process diagnostics
+
+	for s, value := range variables {
+		inputValue, _ := value.(UnparsedVariableValue).ParseVariableValue(VariableParseHCL)
+		//TODO process diagnostics
+
+		ret[s] = inputValue
+	}
+
+	return ret, diags
+}
+
+func (i *Interpreter) ProcessVariables(env []string, rawFlags []rawFlag) (map[string]UnparsedVariableValue, hcl.Diagnostics) {
+	var diags hcl.Diagnostics
 
 	ret := map[string]UnparsedVariableValue{}
 
@@ -151,7 +189,6 @@ func (i *Interpreter) ReadVariables(env []string,rawFlags []rawFlag ) (map[strin
 	}
 	const defaultVarsFilenameJSON = DefaultVarsFilename + ".json"
 
-
 	// Next up we have some implicit files that are loaded automatically
 	// if they are present. There's the original terraform.tfvars
 	// (DefaultVarsFilename) along with the later-added search for all files
@@ -159,29 +196,29 @@ func (i *Interpreter) ReadVariables(env []string,rawFlags []rawFlag ) (map[strin
 
 	/* Terraform loads variables in the following order, with later sources taking precedence over earlier ones:
 
-	  Environment variables
-	  The terraform.tfvars file, if present.
-	  The terraform.tfvars.json file, if present.
-	  Any *.auto.tfvars or *.auto.tfvars.json files, processed in lexical order of their filenames.
-	  Any -var and -var-file options on the command line, in the order they are provided. (This includes variables set by a Terraform Cloud workspace.)
+	Environment variables
+	The terraform.tfvars file, if present.
+	The terraform.tfvars.json file, if present.
+	Any *.auto.tfvars or *.auto.tfvars.json files, processed in lexical order of their filenames.
+	Any -var and -var-file options on the command line, in the order they are provided. (This includes variables set by a Terraform Cloud workspace.)
 	*/
 	for _, terraformFile := range i.TerraformModule.Files {
 		if terraformFile.filename == DefaultVarsFilename {
-			moreDiags := parseVars(terraformFile,ValueFromAutoFile, ret)
-			diags = diags.Append(moreDiags)
+			moreDiags := parseVars(terraformFile, ValueFromAutoFile, ret)
+			diags = append(diags, moreDiags...)
 		}
 	}
 
 	for _, terraformFile := range i.TerraformModule.Files {
 		if terraformFile.filename == defaultVarsFilenameJSON {
-			moreDiags := parseVars(terraformFile,ValueFromAutoFile, ret)
-			diags = diags.Append(moreDiags)
+			moreDiags := parseVars(terraformFile, ValueFromAutoFile, ret)
+			diags = append(diags, moreDiags...)
 		}
 	}
 	for _, terraformFile := range i.TerraformModule.Files {
-		if isAutoVarFile( terraformFile.filename) {
-			moreDiags := parseVars(terraformFile,ValueFromAutoFile, ret)
-			diags = diags.Append(moreDiags)
+		if isAutoVarFile(terraformFile.filename) {
+			moreDiags := parseVars(terraformFile, ValueFromAutoFile, ret)
+			diags = append(diags, moreDiags...)
 		}
 	}
 
@@ -196,12 +233,8 @@ func (i *Interpreter) ReadVariables(env []string,rawFlags []rawFlag ) (map[strin
 			raw := rawFlag.Value
 			eq := strings.Index(raw, "=")
 			if eq == -1 {
-				diags = diags.Append(Sourceless(
-					Error,
-					"Invalid -var option",
-					fmt.Sprintf("The given -var option %q is not correctly specified. Must be a variable name and value separated by an equals sign, like -var=\"key=value\".", raw),
-				))
-				continue
+				log.Fatalf("%s,\n %s", "Invalid -var option",
+					"The given -var option %q is not correctly specified. Must be a variable name and value separated by an equals sign, like -var=\"key=value\".")
 			}
 			name := raw[:eq]
 			rawVal := raw[eq+1:]
@@ -214,38 +247,38 @@ func (i *Interpreter) ReadVariables(env []string,rawFlags []rawFlag ) (map[strin
 		case "-var-file":
 			for _, terraformFile := range i.TerraformModule.Files {
 				if terraformFile.filename == rawFlag.Value {
-					moreDiags := parseVars(terraformFile,ValueFromNamedFile, ret)
-					diags = diags.Append(moreDiags)
+					moreDiags := parseVars(terraformFile, ValueFromNamedFile, ret)
+					diags = append(diags, moreDiags...)
 				}
 			}
 
 		default:
 			// Should never happen; always a bug in the code that built up
 			// the contents of m.variableArgs.
-			diags = diags.Append(fmt.Errorf("unsupported variable option name %q (this is a bug in Terraform)", rawFlag.Name))
+			log.Fatalf("unsupported variable option name %q (this is a bug in Terraform)", rawFlag.Name)
 		}
 	}
 
 	return ret, diags
 }
 
-func parseVars(terraformFile *TerraformFile,sourceType ValueSourceType, to map[string]UnparsedVariableValue) Diagnostics {
-	var diags Diagnostics
+func parseVars(terraformFile *TerraformFile, sourceType ValueSourceType, to map[string]UnparsedVariableValue) hcl.Diagnostics {
+	attrs, hclDiags := terraformFile.File.Body.JustAttributes()
 
-	for name, attr := range terraformFile.BodyContent.Attributes {
+	for name, attr := range attrs {
 		to[name] = unparsedVariableValueExpression{
 			expr:       attr.Expr,
 			sourceType: sourceType,
 		}
 	}
-	return diags
+	return hclDiags
 }
+
 // isAutoVarFile determines if the file ends with .auto.tfvars or .auto.tfvars.json
 func isAutoVarFile(path string) bool {
 	return strings.HasSuffix(path, AUTO_TF_VARS) ||
 		strings.HasSuffix(path, AUTO_TF_VARS_JSON)
 }
-
 
 // VariableParsingMode defines how values of a particular variable given by
 // text-only mechanisms (command line arguments and environment variables)
@@ -260,8 +293,6 @@ const VariableParseLiteral VariableParsingMode = 'L'
 // string as an HCL expression and returns the result.
 const VariableParseHCL VariableParsingMode = 'H'
 
-
-
 func (m VariableParsingMode) Parse(name, value string) (cty.Value, hcl.Diagnostics) {
 	switch m {
 	case VariableParseLiteral:
@@ -273,6 +304,7 @@ func (m VariableParsingMode) Parse(name, value string) (cty.Value, hcl.Diagnosti
 			return cty.DynamicVal, diags
 		}
 		val, valDiags := expr.Value(nil)
+		//val, valDiags := expr.Value(&evalContext)
 		diags = append(diags, valDiags...)
 		return val, diags
 	default:
