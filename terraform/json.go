@@ -16,23 +16,7 @@ type variableMap map[string]cty.Value
 
 type Options struct {
 	Simplify    bool
-	ContextVars HclEvalContextVars
-}
-
-type HclEvalContextVars struct {
-	Val variableMap
-}
-
-func NewHclEvalContextVars() HclEvalContextVars {
-	return HclEvalContextVars{Val: make(variableMap)}
-}
-
-func (h *HclEvalContextVars) addVars(vars variableMap) {
-	h.Val["var"] = cty.ObjectVal(vars)
-}
-
-func (h *HclEvalContextVars) addLocals(locals variableMap) {
-	h.Val["local"] = cty.ObjectVal(locals)
+	ContextVars variableMap
 }
 
 func Convert(module *TerraformModule, options Options) ([]byte, error) {
@@ -86,6 +70,8 @@ func (c *converter) convertBody(body *hclsyntax.Body, file *hcl.File, out jsonOb
 		out = make(jsonObj)
 	}
 	for key, value := range body.Attributes {
+
+		//TODO should we handle count=0 case
 		out[key], err = c.convertExpression(value.Expr, file)
 		if err != nil {
 			return nil, err
@@ -142,7 +128,7 @@ func (c *converter) convertBlock(block *hclsyntax.Block, out jsonObj, file *hcl.
 func (c *converter) convertExpression(expr hclsyntax.Expression, file *hcl.File) (interface{}, error) {
 	if c.options.Simplify {
 		context := (&evalContext).NewChild()
-		context.Variables = c.options.ContextVars.Val
+		context.Variables = c.options.ContextVars
 		value, err := expr.Value(context)
 		if err == nil {
 			return ctyjson.SimpleJSONValue{Value: value}, nil

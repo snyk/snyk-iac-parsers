@@ -157,6 +157,7 @@ func (i *Interpreter) ParseVariables(env []string, rawFlags []rawFlag) (map[stri
 	return ret, diags
 }
 
+//TODO rawflags should keep the order, as it should control variable overriding behavior
 func (i *Interpreter) ProcessVariables(env []string, rawFlags []rawFlag) (map[string]UnparsedVariableValue, hcl.Diagnostics) {
 	var diags hcl.Diagnostics
 
@@ -187,7 +188,7 @@ func (i *Interpreter) ProcessVariables(env []string, rawFlags []rawFlag) (map[st
 			}
 		}
 	}
-	const defaultVarsFilenameJSON = DefaultVarsFilename + ".json"
+	const DefaultVarsFilenameJSON = DefaultVarsFilename + ".json"
 
 	// Next up we have some implicit files that are loaded automatically
 	// if they are present. There's the original terraform.tfvars
@@ -202,6 +203,7 @@ func (i *Interpreter) ProcessVariables(env []string, rawFlags []rawFlag) (map[st
 	Any *.auto.tfvars or *.auto.tfvars.json files, processed in lexical order of their filenames.
 	Any -var and -var-file options on the command line, in the order they are provided. (This includes variables set by a Terraform Cloud workspace.)
 	*/
+
 	for _, terraformFile := range i.TerraformModule.Files {
 		if terraformFile.filename == DefaultVarsFilename {
 			moreDiags := parseVars(terraformFile, ValueFromAutoFile, ret)
@@ -210,11 +212,13 @@ func (i *Interpreter) ProcessVariables(env []string, rawFlags []rawFlag) (map[st
 	}
 
 	for _, terraformFile := range i.TerraformModule.Files {
-		if terraformFile.filename == defaultVarsFilenameJSON {
+		if terraformFile.filename == DefaultVarsFilenameJSON {
 			moreDiags := parseVars(terraformFile, ValueFromAutoFile, ret)
 			diags = append(diags, moreDiags...)
 		}
 	}
+
+	//TODO iterate through auto vars files in lexical order
 	for _, terraformFile := range i.TerraformModule.Files {
 		if isAutoVarFile(terraformFile.filename) {
 			moreDiags := parseVars(terraformFile, ValueFromAutoFile, ret)

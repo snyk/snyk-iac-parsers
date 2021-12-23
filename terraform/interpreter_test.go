@@ -12,9 +12,7 @@ func TestInterpreter_ProcessDirectory(t *testing.T) {
 	interpreter.BuildModule()
 	variables, _ := interpreter.ParseVariables(os.Environ(), []rawFlag{})
 	merged := interpreter.TerraformModule.MergeVariables(variables)
-	context := NewHclEvalContextVars()
-	context.addVars(merged)
-	bytes, err := Convert(interpreter.TerraformModule, Options{Simplify: true, ContextVars: context})
+	bytes, err := Convert(interpreter.TerraformModule, Options{Simplify: true, ContextVars: merged})
 	if err != nil {
 		log.Fatal(err)
 	}
