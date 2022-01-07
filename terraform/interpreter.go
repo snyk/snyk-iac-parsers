@@ -155,7 +155,7 @@ type Config struct {
 	env []string `json:"env"`
 }
 
-func ParseModule(config map[string]interface{}){
+func ParseModule(config map[string]interface{}) string{
 	interpreter := NewInterpreter()
 	for k,v := range config["files"].(map[string]interface{}){
 
@@ -173,7 +173,7 @@ func ParseModule(config map[string]interface{}){
 	if err != nil {
 		log.Fatal(err)
 	}
-	println(string(bytes))
+	return string(bytes)
 }
 
 
