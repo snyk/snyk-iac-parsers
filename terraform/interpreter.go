@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"fmt"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"io/ioutil"
@@ -51,7 +52,7 @@ func (i *Interpreter) ProcessDirectory(dir string) {
 		if strings.HasSuffix(file.Name(), HCL2) || strings.HasSuffix(file.Name(), TF_VARS) {
 			i.parseHCLFile(filepath.Join(dir, file.Name()))
 		} else if strings.HasSuffix(file.Name(), JSON) {
-			i.ParseJSONFile(filepath.Join(dir, file.Name()))
+			//i.ParseJSONFile(filepath.Join(dir, file.Name()))
 		}
 
 	}
@@ -133,4 +134,61 @@ func (i *Interpreter) ParseJSONFile(filename string) {
 
 func (i *Interpreter) ParseJSON(src []byte, filename string) {
 	log.Fatal("Not implemented")
+}
+/*
+  const module1 = {
+  files: {
+    file1: "Content1",
+    file2: "Content2"
+  },
+  flags:{
+   name: "Value"
+  },
+  env: ["name=value"]
+};
+
+ */
+
+type Config struct {
+	files map[string]string `json:"files"`
+	flags map[string]string `json:"flags"`
+	env []string `json:"env"`
+}
+
+func ParseModule(config map[string]interface{}){
+	interpreter := NewInterpreter()
+	for k,v := range config["files"].(map[string]interface{}){
+
+		if strings.HasSuffix(k, HCL2) || strings.HasSuffix(k, TF_VARS) {
+			interpreter.ParseHCL([]byte(v.(string)), k)
+		} else if strings.HasSuffix(k, JSON) {
+			interpreter.ParseJSON([]byte(v.(string)), k)
+		}
+	}
+	interpreter.BuildModule()
+
+	variables, _ := interpreter.ParseVariables(convert2ArrayOfString(config["env"].([]interface{})), convert2MapOfString(config["flags"].(map[string]interface{})))
+	merged := interpreter.TerraformModule.MergeVariables(variables)
+	bytes, err := Convert(interpreter.TerraformModule, Options{Simplify: true, ContextVars: merged})
+	if err != nil {
+		log.Fatal(err)
+	}
+	println(string(bytes))
+}
+
+
+func convert2ArrayOfString(t []interface{})[]string{
+	s := make([]string, len(t))
+	for i, v := range t {
+		s[i] = fmt.Sprint(v)
+	}
+	return s
+}
+
+func convert2MapOfString(t map[string]interface{}) map[string]string{
+	s := make(map[string]string, len(t))
+	for i, v := range t {
+		s[i] = fmt.Sprint(v)
+	}
+	return s
 }

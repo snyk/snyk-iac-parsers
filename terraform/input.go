@@ -136,15 +136,10 @@ func SourceRangeFromHCL(hclRange hcl.Range) SourceRange {
 	}
 }
 
-type rawFlag struct {
-	Name  string
-	Value string
-}
-
-func (i *Interpreter) ParseVariables(env []string, rawFlags []rawFlag) (map[string]*InputValue, hcl.Diagnostics) {
+func (i *Interpreter) ParseVariables(env []string, flags map[string]string) (map[string]*InputValue, hcl.Diagnostics) {
 	ret := map[string]*InputValue{}
 
-	variables, diags := i.ProcessVariables(env, rawFlags)
+	variables, diags := i.ProcessVariables(env, flags)
 	//TODO process diagnostics
 
 	for s, value := range variables {
@@ -158,7 +153,7 @@ func (i *Interpreter) ParseVariables(env []string, rawFlags []rawFlag) (map[stri
 }
 
 //TODO rawflags should keep the order, as it should control variable overriding behavior
-func (i *Interpreter) ProcessVariables(env []string, rawFlags []rawFlag) (map[string]UnparsedVariableValue, hcl.Diagnostics) {
+func (i *Interpreter) ProcessVariables(env []string, flags map[string]string) (map[string]UnparsedVariableValue, hcl.Diagnostics) {
 	var diags hcl.Diagnostics
 
 	ret := map[string]UnparsedVariableValue{}
@@ -228,13 +223,13 @@ func (i *Interpreter) ProcessVariables(env []string, rawFlags []rawFlag) (map[st
 
 	// Finally we process values given explicitly on the command line, either
 	// as individual literal settings or as additional files to read.
-	for _, rawFlag := range rawFlags {
-		switch rawFlag.Name {
+	for k, v := range flags {
+		switch k {
 		case "-var":
 			// Value should be in the form "name=value", where value is a
 			// raw string whose interpretation will depend on the variable's
 			// parsing mode.
-			raw := rawFlag.Value
+			raw := v
 			eq := strings.Index(raw, "=")
 			if eq == -1 {
 				log.Fatalf("%s,\n %s", "Invalid -var option",
@@ -250,7 +245,7 @@ func (i *Interpreter) ProcessVariables(env []string, rawFlags []rawFlag) (map[st
 
 		case "-var-file":
 			for _, terraformFile := range i.TerraformModule.Files {
-				if terraformFile.filename == rawFlag.Value {
+				if terraformFile.filename == v {
 					moreDiags := parseVars(terraformFile, ValueFromNamedFile, ret)
 					diags = append(diags, moreDiags...)
 				}
@@ -259,7 +254,7 @@ func (i *Interpreter) ProcessVariables(env []string, rawFlags []rawFlag) (map[st
 		default:
 			// Should never happen; always a bug in the code that built up
 			// the contents of m.variableArgs.
-			log.Fatalf("unsupported variable option name %q (this is a bug in Terraform)", rawFlag.Name)
+			log.Fatalf("unsupported variable option name %q (this is a bug in Terraform)", k)
 		}
 	}
 
