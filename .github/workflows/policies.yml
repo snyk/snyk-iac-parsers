@@ -1,0 +1,30 @@
+name: Policies Regression Test
+on: [push]
+
+jobs:
+  regression_test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Cloning current repository'
+        uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.17'
+      - name: 'Preparing cloud-config-opa-policies'
+        uses: actions/checkout@v2
+        with:
+          ref: master
+          token: ${{secrets.GH_ACCESS_TOKEN}}
+          repository: snyk/cloud-config-opa-policies
+          path: ./cloud-config-opa-policies
+
+      - name: 'Build local opa binary with link to snyk-iac-parsers'
+        working-directory: ./scripts/opa
+        run: |
+          go build -o opa .
+
+      - name: 'Run regression tests against cloud-config-opa-policies'
+        working-directory: ./cloud-config-opa-policies
+        run: |
+          ../scripts/opa/opa test --ignore "\.*" --ignore "docker-compose.*" --ignore "*_test.yaml" --ignore "*_test.json" --ignore "cspell.json" --ignore "node_modules" --ignore "scripts" --ignore ".*" --ignore "wasm_build" --ignore "venvs" --ignore "_release" --timeout 60s .
+
