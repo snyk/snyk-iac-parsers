@@ -525,7 +525,7 @@ block "label_one" {
 			_, err := ParseHclToJson("test", tc.input, nil)
 			require.NotNil(t, err)
 			assert.Equal(t, tc.expected, err.Error())
-			assert.True(t, err.(*CustomError).userError)
+			assert.True(t, isUserError(err))
 		})
 	}
 }
@@ -545,10 +545,10 @@ variable "test" {
 }`,
 			expected: VariableMap{
 				"var": cty.ObjectVal(VariableMap{
-					"dummy": cty.StringVal("dummy"),
+					"dummy": cty.StringVal("dummy_value"),
 				}),
 				"local": cty.ObjectVal(VariableMap{
-					"dummy": cty.StringVal("dummy"),
+					"dummy": cty.StringVal("dummy_local"),
 				}),
 			},
 		},
@@ -561,10 +561,10 @@ variable "test" {
 }`,
 			expected: VariableMap{
 				"var": cty.ObjectVal(VariableMap{
-					"dummy": cty.StringVal("dummy"),
+					"dummy": cty.StringVal("dummy_value"),
 				}),
 				"local": cty.ObjectVal(VariableMap{
-					"dummy": cty.StringVal("dummy"),
+					"dummy": cty.StringVal("dummy_local"),
 				}),
 			},
 		},
@@ -572,8 +572,159 @@ variable "test" {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual, err := ExtractVariables("test", tc.input)
+			actual, err := extractVariables("test", tc.input)
 			require.Nil(t, err)
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestParseModuleSuccess(t *testing.T) {
+	fileContent := `
+resource "aws_security_group" "allow_ssh" {
+	name        = "allow_ssh"
+	description = "Allow SSH inbound from anywhere"
+	cidr_blocks = var.dummy
+}`
+	jsonOutput := `{
+	"resource": {
+		"aws_security_group": {
+			"allow_ssh": {
+				"cidr_blocks": "dummy_value",
+				"description": "Allow SSH inbound from anywhere",
+				"name": "allow_ssh"
+			}
+		}
+	}
+}`
+	type test struct {
+		name       string
+		files      map[string]interface{}
+		extractErr *CustomError
+		parseErr   *CustomError
+		expected   map[string]interface{}
+	}
+	tests := []test{
+		{
+			name: "Multiple valid files with dummy variables and no error",
+			files: map[string]interface{}{
+				"test1.tf": fileContent,
+				"test2.tf": fileContent,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{
+					"test1.tf": jsonOutput,
+					"test2.tf": jsonOutput,
+				},
+			},
+		},
+		{
+			name: "Multiple files and one file with a user error at extract time",
+			files: map[string]interface{}{
+				"fail.tf":  fileContent,
+				"test2.tf": fileContent,
+			},
+			extractErr: &CustomError{
+				message:   "User error",
+				errors:    []error{},
+				userError: true,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{
+					"fail.tf": "User error",
+				},
+				"parsedFiles": map[string]interface{}{
+					"test2.tf": jsonOutput,
+				},
+			},
+		},
+		{
+			name: "Multiple files and one file with an internal error at extract time",
+			files: map[string]interface{}{
+				"fail.tf":  fileContent,
+				"test2.tf": fileContent,
+			},
+			extractErr: &CustomError{
+				message:   "Internal error",
+				errors:    []error{},
+				userError: false,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{
+					"fail.tf":  jsonOutput, // it's intentional for files that fail with internal errors at extraction time to still try to parse as the internal error can be a flake
+					"test2.tf": jsonOutput,
+				},
+			},
+		},
+		{
+			name: "Multiple files and one file with a user error at parse time",
+			files: map[string]interface{}{
+				"fail.tf":  fileContent,
+				"test2.tf": fileContent,
+			},
+			parseErr: &CustomError{
+				message:   "User error",
+				errors:    []error{},
+				userError: true,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{
+					"fail.tf": "User error",
+				},
+				"parsedFiles": map[string]interface{}{
+					"test2.tf": jsonOutput,
+				},
+			},
+		},
+		{
+			name: "Multiple files and one file with an internal error at parse time",
+			files: map[string]interface{}{
+				"fail.tf":  fileContent,
+				"test2.tf": fileContent,
+			},
+			parseErr: &CustomError{
+				message:   "Internal error",
+				errors:    []error{},
+				userError: false,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{
+					"test2.tf": jsonOutput,
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.parseErr != nil {
+				oldParseHclToJson := parseHclToJson
+				defer func() {
+					parseHclToJson = oldParseHclToJson
+				}()
+				parseHclToJson = func(fileName string, fileContent string, variableMap VariableMap) (string, error) {
+					if fileName == "fail.tf" {
+						return "", tc.parseErr
+					}
+					return oldParseHclToJson(fileName, fileContent, variableMap)
+				}
+			}
+			if tc.extractErr != nil {
+				oldExtractVariables := extractVariables
+				defer func() {
+					extractVariables = oldExtractVariables
+				}()
+				extractVariables = func(fileName string, fileContent string) (VariableMap, error) {
+					if fileName == "fail.tf" {
+						return nil, tc.extractErr
+					}
+					return oldExtractVariables(fileName, fileContent)
+				}
+			}
+			actual := ParseModule(tc.files)
 			assert.Equal(t, tc.expected, actual)
 		})
 	}

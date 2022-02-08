@@ -7,7 +7,17 @@ type CustomError struct {
 }
 
 func (err *CustomError) Error() string {
+	// TODO: include more details here with user information
 	return err.message
+}
+
+func isUserError(err error) bool {
+	switch e := err.(type) {
+	case *CustomError:
+		return e.userError
+	default:
+		return false
+	}
 }
 
 func createInvalidHCLError(errors []error) *CustomError {
