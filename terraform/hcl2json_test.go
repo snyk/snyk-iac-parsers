@@ -1,10 +1,11 @@
 package terraform
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
-	"testing"
 )
 
 func TestParseHCL2JSONSuccess(t *testing.T) {
@@ -531,40 +532,107 @@ block "label_one" {
 }
 
 func TestExtractVariablesSuccess(t *testing.T) {
+	type TestInput struct {
+		fileName    string
+		fileContent string
+	}
+
 	type test struct {
 		name     string
-		input    string
+		input    TestInput
 		expected VariableMap
 	}
 	tests := []test{
 		{
 			name: "Simple variable block with no default",
-			input: `
-variable "test" {
-	type = "string"
-}`,
+			input: TestInput{
+				fileName: "test.tf",
+				fileContent: `
+				variable "test" {
+					type = "string"
+				}`,
+			},
 			expected: VariableMap{
-				"var": cty.ObjectVal(VariableMap{
-					"dummy": cty.StringVal("dummy_value"),
-				}),
+				"var": cty.ObjectVal(VariableMap{}),
 				"local": cty.ObjectVal(VariableMap{
-					"dummy": cty.StringVal("dummy_local"),
+					"dummy": cty.StringVal("dummy"),
 				}),
 			},
 		},
 		{
 			name: "Simple variable block with default",
-			input: `
-variable "test" {
-	type = "string"
-	default = "test"
-}`,
+			input: TestInput{
+				fileName: "test.tf",
+				fileContent: `
+				variable "test" {
+					type = "string"
+					default = "test"
+				}`,
+			},
 			expected: VariableMap{
 				"var": cty.ObjectVal(VariableMap{
-					"dummy": cty.StringVal("dummy_value"),
+					"test": cty.StringVal("test"),
 				}),
 				"local": cty.ObjectVal(VariableMap{
-					"dummy": cty.StringVal("dummy_local"),
+					"dummy": cty.StringVal("dummy"),
+				}),
+			},
+		},
+		{
+			name: "Variable with null value",
+			input: TestInput{
+				fileName: "test.tf",
+				fileContent: `
+				variable "test" {
+					type = "string"
+					default = null
+				}`,
+			},
+			expected: VariableMap{
+				"var": cty.ObjectVal(VariableMap{}),
+				"local": cty.ObjectVal(VariableMap{
+					"dummy": cty.StringVal("dummy"),
+				}),
+			},
+		},
+		{
+			name: "Two variable one with null value and the other with valid value",
+			input: TestInput{
+				fileName: "test.tf",
+				fileContent: `
+				variable "nullTest" {
+					type = "string"
+					default = null
+				}
+				
+				variable "test" {
+					type = "string"
+					default = "test"
+				}`,
+			},
+			expected: VariableMap{
+				"var": cty.ObjectVal(VariableMap{
+					"test": cty.StringVal("test"),
+				}),
+				"local": cty.ObjectVal(VariableMap{
+					"dummy": cty.StringVal("dummy"),
+				}),
+			},
+		},
+		{
+			name: "Non-variable block",
+			input: TestInput{
+				fileName: "test.tf",
+				fileContent: `
+				provider "google" {
+					project = "acme-app"
+					default  = "us-central1"
+				}`,
+			},
+			expected: VariableMap{
+				"var": cty.ObjectVal(VariableMap{}),
+				"local": cty.ObjectVal(VariableMap{
+					"dummy": cty.StringVal("dummy"),
 				}),
 			},
 		},
@@ -572,7 +640,7 @@ variable "test" {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual, err := extractVariables("test", tc.input)
+			actual, err := extractVariables(tc.input.fileName, tc.input.fileContent)
 			require.Nil(t, err)
 			assert.Equal(t, tc.expected, actual)
 		})
@@ -585,15 +653,26 @@ resource "aws_security_group" "allow_ssh" {
 	name        = "allow_ssh"
 	description = "Allow SSH inbound from anywhere"
 	cidr_blocks = var.dummy
+}
+
+variable "dummy" {
+	type = "string"
+	default = "dummy"
 }`
 	jsonOutput := `{
 	"resource": {
 		"aws_security_group": {
 			"allow_ssh": {
-				"cidr_blocks": "dummy_value",
+				"cidr_blocks": "dummy",
 				"description": "Allow SSH inbound from anywhere",
 				"name": "allow_ssh"
 			}
+		}
+	},
+	"variable": {
+		"dummy": {
+			"default": "dummy",
+			"type": "string"
 		}
 	}
 }`
