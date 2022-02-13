@@ -5,21 +5,51 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+type VariableMap map[string]cty.Value
+
 func extractFromFile(file *hcl.File) (VariableMap, hcl.Diagnostics) {
-	// TODO: remove temporary dummy variables
-	// implement "var" when we do input variables and default values
+	// TODO: remove temporary dummy locals
 	// implement "local" when we do local values
+
+	varMap, hclDiags := extractFromTfFile(file)
+	if hclDiags.HasErrors() {
+		return VariableMap{}, hclDiags
+	}
+
 	return VariableMap{
-		"var": cty.ObjectVal(VariableMap{
-			"dummy": cty.StringVal("dummy_value"),
-		}),
+		"var": cty.ObjectVal(varMap),
 		"local": cty.ObjectVal(VariableMap{
-			"dummy": cty.StringVal("dummy_local"),
+			"dummy": cty.StringVal("dummy"),
 		}),
-	}, nil
+	}, hclDiags
 }
 
-type VariableMap map[string]cty.Value
+func extractFromTfFile(file *hcl.File) (VariableMap, hcl.Diagnostics) {
+	varMap := VariableMap{}
+	bodyContent, _, hclDiags := file.Body.PartialContent(tfFileVariableSchema)
+
+	if hclDiags.HasErrors() {
+		return VariableMap{}, hclDiags
+	}
+
+	for _, block := range bodyContent.Blocks {
+		name := block.Labels[0]
+
+		attrs, _ := block.Body.JustAttributes()
+
+		defaultValue := attrs["default"]
+		if defaultValue != nil {
+			value, diags := defaultValue.Expr.Value(&hcl.EvalContext{Functions: terraformFunctions})
+			if diags.HasErrors() || value.IsNull() {
+				continue
+			}
+
+			varMap[name] = value
+		}
+	}
+
+	return varMap, hclDiags
+}
 
 func mergeVariables(variableMaps []VariableMap) VariableMap {
 	combinedVariableMaps := make(VariableMap)

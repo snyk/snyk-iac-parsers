@@ -2,6 +2,7 @@ package terraform
 
 import (
 	"encoding/json"
+
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
