@@ -67,7 +67,8 @@
           ],
           "source_version": null,
           "tags": null,
-          "vpc_config": []
+          "vpc_config": [],
+          "service_role": "aws_iam_role.terra_ci_job"
         }
       },
       "aws_iam_role": {
@@ -97,11 +98,13 @@
       "aws_iam_role_policy": {
         "terra_ci_job": {
           "name_prefix": null,
-          "role": "terra_ci_job"
+          "role": "terra_ci_job",
+          "policy": "data.aws_caller_identity.current"
         },
         "terra_ci_runner": {
           "name_prefix": null,
-          "role": "terra_ci_runner"
+          "role": "terra_ci_runner",
+          "policy": "aws_codebuild_project.terra_ci"
         }
       },
       "aws_iam_role_policy_attachment": {
@@ -147,7 +150,8 @@
           "definition": "{\n  \"Comment\": \"Run Terragrunt Jobs\",\n  \"StartAt\": \"OnBranch?\",\n  \"States\": {\n    \"OnBranch?\": {\n      \"Type\": \"Choice\",\n      \"Choices\": [\n        {\n          \"Variable\": \"$.build.sourceversion\",\n          \"IsPresent\": true,\n          \"Next\": \"PlanBranch\"\n        }\n      ],\n      \"Default\": \"Plan\"\n    },\n    \"Plan\": {\n      \"Type\": \"Task\",\n      \"Resource\": \"arn:aws:states:::codebuild:startBuild.sync\",\n      \"Parameters\": {\n        \"ProjectName\": \"terra-ci-runner\",\n        \"EnvironmentVariablesOverride\": [\n          {\n            \"Name\": \"TERRA_CI_BUILD_NAME\",\n            \"Value.$\": \"$$.Execution.Name\"\n          },\n          {\n            \"Name\": \"TERRA_CI_RESOURCE\",\n            \"Value.$\": \"$.build.environment.terra_ci_resource\"\n          }\n        ]\n      },\n      \"End\": true\n    },\n    \"PlanBranch\": {\n      \"Type\": \"Task\",\n      \"Resource\": \"arn:aws:states:::codebuild:startBuild.sync\",\n      \"Parameters\": {\n        \"ProjectName\": \"terra-ci-runner\",\n        \"SourceVersion.$\": \"$.build.sourceversion\",\n        \"EnvironmentVariablesOverride\": [\n          {\n            \"Name\": \"TERRA_CI_RESOURCE\",\n            \"Value.$\": \"$.build.environment.terra_ci_resource\"\n          }\n        ]\n      },\n      \"End\": true\n    }\n  }\n}\n",
           "name": "terra-ci-runner",
           "tags": null,
-          "type": "STANDARD"
+          "type": "STANDARD",
+          "role_arn": "aws_iam_role.terra_ci_runner"
         }
       },
       "aws_route": {
