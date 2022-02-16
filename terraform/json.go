@@ -46,6 +46,16 @@ func convertFiles(module *TerraformModule, options Options) (jsonObj, error) {
 		}
 	}
 
+	for _, m := range module.childModules {
+		for _, file := range m.Files {
+			if file.isConfig {
+				body := file.File.Body.(*hclsyntax.Body)
+
+				c.convertBody(body, file.File, out)
+			}
+		}
+	}
+
 	return out, nil
 }
 

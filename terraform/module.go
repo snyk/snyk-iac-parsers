@@ -2,15 +2,24 @@ package terraform
 
 import (
 	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
 	"log"
 )
 
+type TerraformModuleTree struct {
+	main     *TerraformModule
+	children []*TerraformModule
+}
+
 type TerraformModule struct {
-	Files      []*TerraformFile
-	blocks     hcl.Blocks
-	attributes hcl.Attributes
-	variables  []Variable
-	locals     []Local
+	Files        []*TerraformFile
+	blocks       hcl.Blocks
+	attributes   hcl.Attributes
+	variables    []Variable
+	locals       []Local
+	moduleCalls  []ModuleCall
+	dir          string
+	childModules map[string]*TerraformModule
 }
 
 type TerraformFile struct {
@@ -19,6 +28,7 @@ type TerraformFile struct {
 	filename    string
 	variables   []Variable
 	locals      []Local
+	moduleCalls []ModuleCall
 	isConfig    bool
 }
 
@@ -54,9 +64,42 @@ func (m *TerraformModule) addFile(hclFile *hcl.File, body *hcl.BodyContent, file
 				diags = append(diags, defsDiags...)
 				terraformFile.locals = append(terraformFile.locals, locals...)
 				m.locals = append(m.locals, locals...)
+			case "module":
+				cfg, cfgDiags := decodeModuleBlock(block, false)
+				diags = append(diags, cfgDiags...)
+				terraformFile.moduleCalls = append(terraformFile.moduleCalls, cfg)
+				m.moduleCalls = append(m.moduleCalls, cfg)
+
 			default:
 				continue
 			}
 		}
 	}
+}
+func (m *TerraformModule) MergeVariables(inputs map[string]*InputValue) map[string]cty.Value {
+	ret := make(variableMap)
+
+	vars := make(variableMap)
+	//Handle variable default values
+	for _, variable := range m.variables {
+		if variable.DefaultSet {
+			vars[variable.Name] = variable.Default
+		}
+	}
+	//Override variable defaults with input
+	for name, inputValue := range inputs {
+		vars[name] = inputValue.Value
+	}
+	ret["var"] = cty.ObjectVal(vars)
+
+	locals := make(variableMap)
+
+	//Handle locals
+	for _, local := range m.locals {
+		locals[local.Name] = local.Value
+	}
+
+	ret["local"] = cty.ObjectVal(locals)
+
+	return ret
 }

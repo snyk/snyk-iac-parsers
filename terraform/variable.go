@@ -62,31 +62,3 @@ func decodeVariableBlock(block *hcl.Block, override bool) (Variable, hcl.Diagnos
 
 	return v, diags
 }
-
-func (m *TerraformModule) MergeVariables(inputs map[string]*InputValue) map[string]cty.Value {
-	ret := make(variableMap)
-
-	vars := make(variableMap)
-	//Handle variable default values
-	for _, variable := range m.variables {
-		if variable.DefaultSet {
-			vars[variable.Name] = variable.Default
-		}
-	}
-	//Override variable defaults with input
-	for name, inputValue := range inputs {
-		vars[name] = inputValue.Value
-	}
-	ret["var"] = cty.ObjectVal(vars)
-
-	locals := make(variableMap)
-
-	//Handle locals
-	for _, local := range m.locals {
-		locals[local.Name] = local.Value
-	}
-
-	ret["local"] = cty.ObjectVal(locals)
-
-	return ret
-}

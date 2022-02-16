@@ -136,15 +136,10 @@ func SourceRangeFromHCL(hclRange hcl.Range) SourceRange {
 	}
 }
 
-type rawFlag struct {
-	Name  string
-	Value string
-}
-
-func (i *Interpreter) ParseVariables(env []string, rawFlags []rawFlag) (map[string]*InputValue, hcl.Diagnostics) {
+func ParseVariables(module *TerraformModule, env []string, rawFlags []rawFlag) (map[string]*InputValue, hcl.Diagnostics) {
 	ret := map[string]*InputValue{}
 
-	variables, diags := i.ProcessVariables(env, rawFlags)
+	variables, diags := ProcessVariables(module, env, rawFlags)
 	//TODO process diagnostics
 
 	for s, value := range variables {
@@ -157,8 +152,10 @@ func (i *Interpreter) ParseVariables(env []string, rawFlags []rawFlag) (map[stri
 	return ret, diags
 }
 
+const ARG_VAR_FILE = "-var-file"
+
 //TODO rawflags should keep the order, as it should control variable overriding behavior
-func (i *Interpreter) ProcessVariables(env []string, rawFlags []rawFlag) (map[string]UnparsedVariableValue, hcl.Diagnostics) {
+func ProcessVariables(module *TerraformModule, env []string, rawFlags []rawFlag) (map[string]UnparsedVariableValue, hcl.Diagnostics) {
 	var diags hcl.Diagnostics
 
 	ret := map[string]UnparsedVariableValue{}
@@ -204,14 +201,14 @@ func (i *Interpreter) ProcessVariables(env []string, rawFlags []rawFlag) (map[st
 	Any -var and -var-file options on the command line, in the order they are provided. (This includes variables set by a Terraform Cloud workspace.)
 	*/
 
-	for _, terraformFile := range i.TerraformModule.Files {
+	for _, terraformFile := range module.Files {
 		if terraformFile.filename == DefaultVarsFilename {
 			moreDiags := parseVars(terraformFile, ValueFromAutoFile, ret)
 			diags = append(diags, moreDiags...)
 		}
 	}
 
-	for _, terraformFile := range i.TerraformModule.Files {
+	for _, terraformFile := range module.Files {
 		if terraformFile.filename == DefaultVarsFilenameJSON {
 			moreDiags := parseVars(terraformFile, ValueFromAutoFile, ret)
 			diags = append(diags, moreDiags...)
@@ -219,7 +216,7 @@ func (i *Interpreter) ProcessVariables(env []string, rawFlags []rawFlag) (map[st
 	}
 
 	//TODO iterate through auto vars files in lexical order
-	for _, terraformFile := range i.TerraformModule.Files {
+	for _, terraformFile := range module.Files {
 		if isAutoVarFile(terraformFile.filename) {
 			moreDiags := parseVars(terraformFile, ValueFromAutoFile, ret)
 			diags = append(diags, moreDiags...)
@@ -248,8 +245,8 @@ func (i *Interpreter) ProcessVariables(env []string, rawFlags []rawFlag) (map[st
 				sourceType: ValueFromCLIArg,
 			}
 
-		case "-var-file":
-			for _, terraformFile := range i.TerraformModule.Files {
+		case ARG_VAR_FILE:
+			for _, terraformFile := range module.Files {
 				if terraformFile.filename == rawFlag.Value {
 					moreDiags := parseVars(terraformFile, ValueFromNamedFile, ret)
 					diags = append(diags, moreDiags...)
