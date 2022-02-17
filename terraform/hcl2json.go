@@ -11,6 +11,7 @@ import (
 func ParseModule(files map[string]interface{}) map[string]interface{} {
 	failedFiles := make(map[string]interface{}) // will contain files alongside user errors
 	parsedFiles := make(map[string]interface{})
+	debugLogs := make(map[string]interface{})
 
 	variablesMaps := map[string]VariableMap{}
 	for fileName, fileContentInterface := range files {
@@ -24,6 +25,7 @@ func ParseModule(files map[string]interface{}) map[string]interface{} {
 			if err != nil {
 				// skip non-user errors
 				if isUserError(err) {
+					debugLogs[fileName] = GenerateDebugLogs(err)
 					failedFiles[fileName] = err.Error()
 				}
 				continue
@@ -42,6 +44,7 @@ func ParseModule(files map[string]interface{}) map[string]interface{} {
 			if err != nil {
 				// skip non-user errors
 				if isUserError(err) {
+					debugLogs[fileName] = GenerateDebugLogs(err)
 					failedFiles[fileName] = err.Error()
 				}
 				continue
@@ -53,6 +56,7 @@ func ParseModule(files map[string]interface{}) map[string]interface{} {
 	return map[string]interface{}{
 		"parsedFiles": parsedFiles,
 		"failedFiles": failedFiles,
+		"debugLogs":   debugLogs,
 	}
 }
 

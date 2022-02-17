@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -696,6 +697,7 @@ variable "dummy" {
 					"test1.tf": jsonOutput,
 					"test2.tf": jsonOutput,
 				},
+				"debugLogs": map[string]interface{}{},
 			},
 		}, {
 			name: "A valid .tf and terraform.tfvars file with no overlapping variables and no error",
@@ -709,6 +711,7 @@ resource "aws_security_group" "allow_ssh" {
 				"terraform.tfvars": `dummy = "dummy"`,
 			},
 			expected: map[string]interface{}{
+				"debugLogs":   map[string]interface{}{},
 				"failedFiles": map[string]interface{}{},
 				"parsedFiles": map[string]interface{}{
 					"test.tf": `{
@@ -741,6 +744,7 @@ variable "dummy" {
 				"test_terraform.tfvars": `dummy = "dummy_override"`,
 			},
 			expected: map[string]interface{}{
+				"debugLogs":   map[string]interface{}{},
 				"failedFiles": map[string]interface{}{},
 				"parsedFiles": map[string]interface{}{
 					"test.tf": `{
@@ -779,6 +783,7 @@ variable "dummy" {
 				"terraform.tfvars": `dummy = "dummy_override"`,
 			},
 			expected: map[string]interface{}{
+				"debugLogs":   map[string]interface{}{},
 				"failedFiles": map[string]interface{}{},
 				"parsedFiles": map[string]interface{}{
 					"test.tf": `{
@@ -819,6 +824,7 @@ variable "dummy" {
 				"a_test.auto.tfvars": `dummy = "a_dummy_override"`,
 			},
 			expected: map[string]interface{}{
+				"debugLogs":   map[string]interface{}{},
 				"failedFiles": map[string]interface{}{},
 				"parsedFiles": map[string]interface{}{
 					"test.tf": `{
@@ -928,6 +934,7 @@ remote_user_addr_b_auto_tfvars = ["1.2.3.4/32"]
 `,
 			},
 			expected: map[string]interface{}{
+				"debugLogs":   map[string]interface{}{},
 				"failedFiles": map[string]interface{}{},
 				"parsedFiles": map[string]interface{}{
 					"variables.tf": `{
@@ -1024,8 +1031,10 @@ remote_user_addr_b_auto_tfvars = ["1.2.3.4/32"]
 				"test2.tf": fileContent,
 			},
 			extractErr: &CustomError{
-				message:   "User error",
-				errors:    []error{},
+				message: "User error",
+				errors: []error{
+					errors.New("Test"),
+				},
 				userError: true,
 			},
 			expected: map[string]interface{}{
@@ -1034,6 +1043,9 @@ remote_user_addr_b_auto_tfvars = ["1.2.3.4/32"]
 				},
 				"parsedFiles": map[string]interface{}{
 					"test2.tf": jsonOutput,
+				},
+				"debugLogs": map[string]interface{}{
+					"fail.tf": "\nTest",
 				},
 			},
 		},
@@ -1044,8 +1056,10 @@ remote_user_addr_b_auto_tfvars = ["1.2.3.4/32"]
 				"test2.tf": fileContent,
 			},
 			extractErr: &CustomError{
-				message:   "Internal error",
-				errors:    []error{},
+				message: "Internal error",
+				errors: []error{
+					errors.New("Test"),
+				},
 				userError: false,
 			},
 			expected: map[string]interface{}{
@@ -1054,6 +1068,7 @@ remote_user_addr_b_auto_tfvars = ["1.2.3.4/32"]
 					"fail.tf":  jsonOutput, // it's intentional for files that fail with internal errors at extraction time to still try to parse as the internal error can be a flake
 					"test2.tf": jsonOutput,
 				},
+				"debugLogs": map[string]interface{}{},
 			},
 		},
 		{
@@ -1063,8 +1078,10 @@ remote_user_addr_b_auto_tfvars = ["1.2.3.4/32"]
 				"test2.tf": fileContent,
 			},
 			parseErr: &CustomError{
-				message:   "User error",
-				errors:    []error{},
+				message: "User error",
+				errors: []error{
+					errors.New("Test"),
+				},
 				userError: true,
 			},
 			expected: map[string]interface{}{
@@ -1073,6 +1090,9 @@ remote_user_addr_b_auto_tfvars = ["1.2.3.4/32"]
 				},
 				"parsedFiles": map[string]interface{}{
 					"test2.tf": jsonOutput,
+				},
+				"debugLogs": map[string]interface{}{
+					"fail.tf": "\nTest",
 				},
 			},
 		},
@@ -1083,8 +1103,10 @@ remote_user_addr_b_auto_tfvars = ["1.2.3.4/32"]
 				"test2.tf": fileContent,
 			},
 			parseErr: &CustomError{
-				message:   "Internal error",
-				errors:    []error{},
+				message: "Internal error",
+				errors: []error{
+					errors.New("Test"),
+				},
 				userError: false,
 			},
 			expected: map[string]interface{}{
@@ -1092,6 +1114,7 @@ remote_user_addr_b_auto_tfvars = ["1.2.3.4/32"]
 				"parsedFiles": map[string]interface{}{
 					"test2.tf": jsonOutput,
 				},
+				"debugLogs": map[string]interface{}{},
 			},
 		},
 	}

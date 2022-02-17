@@ -1,5 +1,7 @@
 package terraform
 
+import "fmt"
+
 type CustomError struct {
 	message   string
 	errors    []error
@@ -7,8 +9,19 @@ type CustomError struct {
 }
 
 func (err *CustomError) Error() string {
-	// TODO: include more details here with user information
 	return err.message
+}
+
+func GenerateDebugLogs(err error) string {
+	customError, ok := err.(*CustomError)
+
+	debugging := ""
+	if ok {
+		for _, e := range customError.errors {
+			debugging = fmt.Sprintf("%s\n%s", debugging, e.Error())
+		}
+	}
+	return debugging
 }
 
 func isUserError(err error) bool {
