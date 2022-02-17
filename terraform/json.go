@@ -42,16 +42,16 @@ func convertFiles(module *TerraformModule, options Options) (jsonObj, error) {
 		if file.isConfig {
 			body := file.File.Body.(*hclsyntax.Body)
 
-			c.convertBody(body, file.File, out)
+			c.convertBody(body, file.File, out, "")
 		}
 	}
 
-	for _, m := range module.childModules {
+	for moduleName, m := range module.childModules {
 		for _, file := range m.Files {
 			if file.isConfig {
 				body := file.File.Body.(*hclsyntax.Body)
 
-				c.convertBody(body, file.File, out)
+				c.convertBody(body, file.File, out, fmt.Sprintf("module.%s.", moduleName))
 			}
 		}
 	}
@@ -74,7 +74,7 @@ func (c *converter) rangeSource(r hcl.Range, file *hcl.File) string {
 	return string(file.Bytes[r.Start.Byte:end])
 }
 
-func (c *converter) convertBody(body *hclsyntax.Body, file *hcl.File, out jsonObj) (jsonObj, error) {
+func (c *converter) convertBody(body *hclsyntax.Body, file *hcl.File, out jsonObj, prefix string) (jsonObj, error) {
 	var err error
 	if out == nil {
 		out = make(jsonObj)
@@ -89,7 +89,7 @@ func (c *converter) convertBody(body *hclsyntax.Body, file *hcl.File, out jsonOb
 	}
 
 	for _, block := range body.Blocks {
-		err = c.convertBlock(block, out, file)
+		err = c.convertBlock(block, out, file, prefix)
 		if err != nil {
 			return nil, err
 		}
@@ -98,15 +98,15 @@ func (c *converter) convertBody(body *hclsyntax.Body, file *hcl.File, out jsonOb
 	return out, nil
 }
 
-func (c *converter) convertBlock(block *hclsyntax.Block, out jsonObj, file *hcl.File) error {
+func (c *converter) convertBlock(block *hclsyntax.Block, out jsonObj, file *hcl.File, prefix string) error {
 	var key string = block.Type
 
-	value, err := c.convertBody(block.Body, file, nil)
+	value, err := c.convertBody(block.Body, file, nil, prefix)
 	if err != nil {
 		return err
 	}
 
-	for _, label := range block.Labels {
+	for i, label := range block.Labels {
 		if inner, exists := out[key]; exists {
 			var ok bool
 			out, ok = inner.(jsonObj)
@@ -119,7 +119,14 @@ func (c *converter) convertBlock(block *hclsyntax.Block, out jsonObj, file *hcl.
 			out[key] = obj
 			out = obj
 		}
-		key = label
+
+		//
+		if i > 0 {
+			key = fmt.Sprintf("%s%s", prefix, label)
+		} else {
+			key = label
+		}
+
 	}
 
 	if current, exists := out[key]; exists {
