@@ -24,6 +24,7 @@ func extractFromFile(file *hcl.File) (VariableMap, hcl.Diagnostics) {
 	}, hclDiags
 }
 
+// Logic inspired from https://github.com/hashicorp/terraform/blob/f266d1ee82d1fa4d882c146cc131fec4bef753cf/internal/configs/named_values.go#L113
 func extractFromTfFile(file *hcl.File) (VariableMap, hcl.Diagnostics) {
 	varMap := VariableMap{}
 	bodyContent, _, hclDiags := file.Body.PartialContent(tfFileVariableSchema)
