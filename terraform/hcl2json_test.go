@@ -685,7 +685,7 @@ variable "dummy" {
 	}
 	tests := []test{
 		{
-			name: "Multiple valid files with dummy variables and no error",
+			name: "Multiple valid .tf files with dummy variables and no error",
 			files: map[string]interface{}{
 				"test1.tf": fileContent,
 				"test2.tf": fileContent,
@@ -697,6 +697,325 @@ variable "dummy" {
 					"test2.tf": jsonOutput,
 				},
 			},
+		}, {
+			name: "A valid .tf and terraform.tfvars file with no overlapping variables and no error",
+			files: map[string]interface{}{
+				"test.tf": `
+resource "aws_security_group" "allow_ssh" {
+	name        = "allow_ssh"
+	description = "Allow SSH inbound from anywhere"
+	cidr_blocks = var.dummy
+}`,
+				"terraform.tfvars": `dummy = "dummy"`,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{
+					"test.tf": `{
+	"resource": {
+		"aws_security_group": {
+			"allow_ssh": {
+				"cidr_blocks": "dummy",
+				"description": "Allow SSH inbound from anywhere",
+				"name": "allow_ssh"
+			}
+		}
+	}
+}`,
+				},
+			},
+		}, {
+			name: "A valid .tf and random .tfvars file with overlapping variables and no error",
+			files: map[string]interface{}{
+				"test.tf": `
+resource "aws_security_group" "allow_ssh" {
+	name        = "allow_ssh"
+	description = "Allow SSH inbound from anywhere"
+	cidr_blocks = var.dummy
+}
+
+variable "dummy" {
+	type = "string"
+	default = "dummy"
+}`,
+				"test_terraform.tfvars": `dummy = "dummy_override"`,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{
+					"test.tf": `{
+	"resource": {
+		"aws_security_group": {
+			"allow_ssh": {
+				"cidr_blocks": "dummy",
+				"description": "Allow SSH inbound from anywhere",
+				"name": "allow_ssh"
+			}
+		}
+	},
+	"variable": {
+		"dummy": {
+			"default": "dummy",
+			"type": "string"
+		}
+	}
+}`,
+				},
+			},
+		}, {
+			name: "A valid .tf and terraform.tfvars file with overlapping variables and no error",
+			files: map[string]interface{}{
+				"test.tf": `
+resource "aws_security_group" "allow_ssh" {
+	name        = "allow_ssh"
+	description = "Allow SSH inbound from anywhere"
+	cidr_blocks = var.dummy
+}
+
+variable "dummy" {
+	type = "string"
+	default = "dummy"
+}`,
+				"terraform.tfvars": `dummy = "dummy_override"`,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{
+					"test.tf": `{
+	"resource": {
+		"aws_security_group": {
+			"allow_ssh": {
+				"cidr_blocks": "dummy_override",
+				"description": "Allow SSH inbound from anywhere",
+				"name": "allow_ssh"
+			}
+		}
+	},
+	"variable": {
+		"dummy": {
+			"default": "dummy",
+			"type": "string"
+		}
+	}
+}`,
+				},
+			},
+		}, {
+			name: "A valid .tf, terraform.tfvars, and *.auto.tfvars file with overlapping variables and no error",
+			files: map[string]interface{}{
+				"test.tf": `
+resource "aws_security_group" "allow_ssh" {
+	name        = "allow_ssh"
+	description = "Allow SSH inbound from anywhere"
+	cidr_blocks = var.dummy
+}
+
+variable "dummy" {
+	type = "string"
+	default = "dummy"
+}`,
+				"terraform.tfvars":   `dummy = "dummy_override"`,
+				"b_test.auto.tfvars": `dummy = "b_dummy_override"`,
+				"a_test.auto.tfvars": `dummy = "a_dummy_override"`,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{
+					"test.tf": `{
+	"resource": {
+		"aws_security_group": {
+			"allow_ssh": {
+				"cidr_blocks": "b_dummy_override",
+				"description": "Allow SSH inbound from anywhere",
+				"name": "allow_ssh"
+			}
+		}
+	},
+	"variable": {
+		"dummy": {
+			"default": "dummy",
+			"type": "string"
+		}
+	}
+}`,
+				},
+			},
+		}, {
+			name: "Multiple valid .tf files with default variables, a terraform.tfvars file and multiple *.auto.tfvars files",
+			files: map[string]interface{}{
+				"variables.tf": `variable "remote_user_addr" {
+  type = list(string)
+  default = ["0.0.0.0/0"]
+}
+
+variable "remote_user_addr_terraform_tfvars" {
+  type = list(string)
+  default = ["1.2.3.4/32"]
+}
+
+variable "remote_user_addr_a_auto_tfvars" {
+  type = list(string)
+  default = ["1.2.3.4/32"]
+}
+
+variable "remote_user_addr_b_auto_tfvars" {
+  type = list(string)
+  default = ["1.2.3.4/32"]
+}`,
+				"test.tf": `resource "aws_security_group" "allow_ssh" {
+  name        = "allow_ssh"
+  description = "Allow SSH inbound from anywhere"
+  vpc_id      = "${aws_vpc.main.id}"
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = var.remote_user_addr
+  }
+}
+
+resource "aws_security_group" "allow_ssh_terraform_tfvars" {
+  name        = "allow_ssh"
+  description = "Allow SSH inbound from anywhere"
+  vpc_id      = "${aws_vpc.main.id}"
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = var.remote_user_addr_terraform_tfvars
+  }
+}
+
+resource "aws_security_group" "allow_ssh_a_auto_tfvars" {
+  name        = "allow_ssh"
+  description = "Allow SSH inbound from anywhere"
+  vpc_id      = "${aws_vpc.main.id}"
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = var.remote_user_addr_a_auto_tfvars
+  }
+}
+
+resource "aws_security_group" "allow_ssh_b_auto_tfvars" {
+  name        = "allow_ssh"
+  description = "Allow SSH inbound from anywhere"
+  vpc_id      = "${aws_vpc.main.id}"
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = var.remote_user_addr_b_auto_tfvars
+  }
+}`,
+				"terraform.tfvars": `remote_user_addr_terraform_tfvars = ["0.0.0.0/0"]
+
+remote_user_addr_a_auto_tfvars = ["1.2.3.4/32"]
+
+remote_user_addr_b_auto_tfvars = ["1.2.3.4/32"]
+
+`,
+				"a.auto.tfvars": `remote_user_addr_a_auto_tfvars = ["0.0.0.0/0"]
+
+remote_user_addr_b_auto_tfvars = ["1.2.3.4/32"]
+`,
+				"b.auto.tfvars": `remote_user_addr_b_auto_tfvars = ["0.0.0.0/0"]
+`,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{
+					"variables.tf": `{
+	"variable": {
+		"remote_user_addr": {
+			"default": [
+				"0.0.0.0/0"
+			],
+			"type": "${list(string)}"
+		},
+		"remote_user_addr_a_auto_tfvars": {
+			"default": [
+				"1.2.3.4/32"
+			],
+			"type": "${list(string)}"
+		},
+		"remote_user_addr_b_auto_tfvars": {
+			"default": [
+				"1.2.3.4/32"
+			],
+			"type": "${list(string)}"
+		},
+		"remote_user_addr_terraform_tfvars": {
+			"default": [
+				"1.2.3.4/32"
+			],
+			"type": "${list(string)}"
+		}
+	}
+}`,
+					"test.tf": `{
+	"resource": {
+		"aws_security_group": {
+			"allow_ssh": {
+				"description": "Allow SSH inbound from anywhere",
+				"ingress": {
+					"cidr_blocks": [
+						"0.0.0.0/0"
+					],
+					"from_port": 22,
+					"protocol": "tcp",
+					"to_port": 22
+				},
+				"name": "allow_ssh",
+				"vpc_id": "${aws_vpc.main.id}"
+			},
+			"allow_ssh_a_auto_tfvars": {
+				"description": "Allow SSH inbound from anywhere",
+				"ingress": {
+					"cidr_blocks": [
+						"0.0.0.0/0"
+					],
+					"from_port": 22,
+					"protocol": "tcp",
+					"to_port": 22
+				},
+				"name": "allow_ssh",
+				"vpc_id": "${aws_vpc.main.id}"
+			},
+			"allow_ssh_b_auto_tfvars": {
+				"description": "Allow SSH inbound from anywhere",
+				"ingress": {
+					"cidr_blocks": [
+						"0.0.0.0/0"
+					],
+					"from_port": 22,
+					"protocol": "tcp",
+					"to_port": 22
+				},
+				"name": "allow_ssh",
+				"vpc_id": "${aws_vpc.main.id}"
+			},
+			"allow_ssh_terraform_tfvars": {
+				"description": "Allow SSH inbound from anywhere",
+				"ingress": {
+					"cidr_blocks": [
+						"0.0.0.0/0"
+					],
+					"from_port": 22,
+					"protocol": "tcp",
+					"to_port": 22
+				},
+				"name": "allow_ssh",
+				"vpc_id": "${aws_vpc.main.id}"
+			}
+		}
+	}
+}`}},
 		},
 		{
 			name: "Multiple files and one file with a user error at extract time",
