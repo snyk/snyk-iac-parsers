@@ -2,7 +2,12 @@
 ---
 
 [![CircleCI](https://circleci.com/gh/snyk/snyk-iac-parsers/tree/main.svg?style=svg&circle-token=fc5da6b1544139b067e9d252270a60213a43e0d5)](https://circleci.com/gh/snyk/snyk-iac-parsers/tree/main)
+[![Regression Tests](https://github.com/snyk/snyk-iac-parsers/actions/workflows/policies.yml/badge.svg)](https://img.shields.io/github/workflow/status/snyk/snyk-iac-parsers/Policies%20Regression%20Test?label=regression%20tests)
 
+[![Latest release version](https://img.shields.io/github/v/release/snyk/snyk-iac-parsers)](https://github.com/snyk/snyk-iac-parsers)
+[![Latest release date](https://img.shields.io/github/release-date/snyk/snyk-iac-parsers)](https://github.com/snyk/snyk-iac-rules)
+
+[![Golang Version](https://img.shields.io/github/go-mod/go-version/snyk/snyk-iac-parsers)](https://github.com/snyk/snyk-iac-parsers)
 ---
 
 This project includes parsers that are used for Snyk Infrastructure As Code product. Parsers convert the files they take as input into JSON. 
