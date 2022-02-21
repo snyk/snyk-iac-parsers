@@ -60,27 +60,6 @@ func TestMergeVariablesOverridesWithTerraformTfvars(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
-func TestMergeVariablesDoesNotOverrideWithRandomTfvars(t *testing.T) {
-	input := map[string]VariableMap{
-		"test1.tf": VariableMap{
-			"var": cty.ObjectVal(VariableMap{
-				"var": cty.StringVal("val1"),
-			}),
-		},
-		"test.tfvars": VariableMap{
-			"var": cty.ObjectVal(VariableMap{
-				"var": cty.StringVal("val2")}),
-		},
-	}
-	expected := VariableMap{
-		"var": cty.ObjectVal(VariableMap{
-			"var": cty.StringVal("val1"),
-		}),
-	}
-	actual := mergeVariables(input)
-	assert.Equal(t, expected, actual)
-}
-
 func TestMergeVariablesOverridesWithAnyAutoTfvars(t *testing.T) {
 	input := map[string]VariableMap{
 		"test1.tf": VariableMap{
