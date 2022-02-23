@@ -1,30 +1,32 @@
 package terraform
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"testing"
 )
 
 func TestIsTerraformTfvarsFile(t *testing.T) {
 	assert.True(t, isTerraformTfvarsFile("terraform.tfvars"))
-	assert.True(t, isTerraformTfvarsFile("path/to/terraform.tfvars"))
+	assert.True(t, isTerraformTfvarsFile(fmt.Sprintf("path%cto%cterraform.tfvars", os.PathSeparator, os.PathSeparator)))
 	assert.False(t, isTerraformTfvarsFile("test_terraform.tfvars"))
 }
 
 func TestIsValidVariableFile(t *testing.T) {
-	assert.True(t, isValidVariableFile("path/to/terraform.tfvars"))
-	assert.False(t, isValidVariableFile("path/to/terraform.tfvars.json"))
-	assert.True(t, isValidVariableFile("path/to/test.tf"))
-	assert.True(t, isValidVariableFile("path/to/test.auto.tfvars"))
-	assert.False(t, isValidVariableFile("path/to/test.auto.tfvars.json"))
+	assert.True(t, isValidVariableFile(fmt.Sprintf("path%cto%cterraform.tfvars", os.PathSeparator, os.PathSeparator)))
+	assert.False(t, isValidVariableFile(fmt.Sprintf("path%cto%cterraform.tfvars.json", os.PathSeparator, os.PathSeparator)))
+	assert.True(t, isValidVariableFile(fmt.Sprintf("path%cto%ctest.tf", os.PathSeparator, os.PathSeparator)))
+	assert.True(t, isValidVariableFile(fmt.Sprintf("path%cto%ctest.auto.tfvars", os.PathSeparator, os.PathSeparator)))
+	assert.False(t, isValidVariableFile(fmt.Sprintf("path%cto%ctest.auto.tfvars.json", os.PathSeparator, os.PathSeparator)))
 }
 
 func TestIsValidTerraformFile(t *testing.T) {
-	assert.False(t, isValidTerraformFile("path/to/terraform.tfvars"))
-	assert.False(t, isValidTerraformFile("path/to/terraform.tfvars.json"))
-	assert.True(t, isValidTerraformFile("path/to/test.tf"))
-	assert.False(t, isValidTerraformFile("path/to/test.auto.tfvars"))
-	assert.False(t, isValidTerraformFile("path/to/test.auto.tfvars.json"))
+	assert.False(t, isValidTerraformFile(fmt.Sprintf("path%cto%cterraform.tfvars", os.PathSeparator, os.PathSeparator)))
+	assert.False(t, isValidTerraformFile(fmt.Sprintf("path%cto%cterraform.tfvars.json", os.PathSeparator, os.PathSeparator)))
+	assert.True(t, isValidTerraformFile(fmt.Sprintf("path%cto%ctest.tf", os.PathSeparator, os.PathSeparator)))
+	assert.False(t, isValidTerraformFile(fmt.Sprintf("path%cto%ctest.auto.tfvars", os.PathSeparator, os.PathSeparator)))
+	assert.False(t, isValidTerraformFile(fmt.Sprintf("path%cto%ctest.auto.tfvars.json", os.PathSeparator, os.PathSeparator)))
 }
 
 func TestOrderFilesByPriority(t *testing.T) {
