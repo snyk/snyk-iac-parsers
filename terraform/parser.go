@@ -2,10 +2,12 @@ package terraform
 
 import (
 	"fmt"
+	"strings"
+
+	"github.com/snyk/snyk-iac-parsers/terraform/variables"
 	"github.com/zclconf/go-cty/cty"
 	ctyconvert "github.com/zclconf/go-cty/cty/convert"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
-	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -19,13 +21,13 @@ type Options struct {
 
 type Parser struct {
 	bytes     []byte
-	variables VariableMap
+	variables variables.VariableMap
 	options   Options
 }
 
 type JSON = map[string]interface{}
 
-func parseFile(file *hcl.File, variables VariableMap) (JSON, error) {
+func parseFile(file *hcl.File, variables variables.VariableMap) (JSON, error) {
 	parser := Parser{
 		bytes:     file.Bytes,
 		variables: variables,

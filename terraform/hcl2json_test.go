@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/snyk/snyk-iac-parsers/terraform/variables"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -13,7 +14,7 @@ func TestParseHCL2JSONSuccess(t *testing.T) {
 	type test struct {
 		name      string
 		input     string
-		variables VariableMap
+		variables variables.VariableMap
 		expected  string
 	}
 
@@ -364,8 +365,8 @@ variable "region" {
 		}
 	}
 }`,
-			variables: VariableMap{
-				"var": cty.ObjectVal(VariableMap{
+			variables: variables.VariableMap{
+				"var": cty.ObjectVal(variables.VariableMap{
 					"instance_name": cty.StringVal("test"),
 				}),
 			},
@@ -394,8 +395,8 @@ variable "region" {
 		}
 	}
 }`,
-			variables: VariableMap{
-				"local": cty.ObjectVal(VariableMap{
+			variables: variables.VariableMap{
+				"local": cty.ObjectVal(variables.VariableMap{
 					"instance_name": cty.StringVal("test"),
 				}),
 			},
@@ -415,8 +416,8 @@ variable "region" {
 		}
 	}
 }`,
-			variables: VariableMap{
-				"local": cty.ObjectVal(VariableMap{
+			variables: variables.VariableMap{
+				"local": cty.ObjectVal(variables.VariableMap{
 					"instance_name": cty.StringVal("test"),
 				}),
 			},
@@ -432,8 +433,8 @@ variable "region" {
 		"test": "test"
 	}
 }`,
-			variables: VariableMap{
-				"local": cty.ObjectVal(VariableMap{
+			variables: variables.VariableMap{
+				"local": cty.ObjectVal(variables.VariableMap{
 					"instance_name": cty.StringVal("test"),
 				}),
 			},
@@ -457,8 +458,8 @@ locals {
 		}
 	}
 }`,
-			variables: VariableMap{
-				"local": cty.ObjectVal(VariableMap{
+			variables: variables.VariableMap{
+				"local": cty.ObjectVal(variables.VariableMap{
 					"test1": cty.StringVal("a"),
 					"test2": cty.StringVal("b"),
 				}),
@@ -488,8 +489,8 @@ locals {
 		}
 	}
 }`,
-			variables: VariableMap{
-				"var": cty.ObjectVal(VariableMap{
+			variables: variables.VariableMap{
+				"var": cty.ObjectVal(variables.VariableMap{
 					"wrong_name": cty.StringVal("test"),
 				}),
 			},
@@ -541,7 +542,7 @@ func TestExtractVariablesSuccess(t *testing.T) {
 	type test struct {
 		name     string
 		input    TestInput
-		expected VariableMap
+		expected variables.VariableMap
 	}
 	tests := []test{
 		{
@@ -553,9 +554,9 @@ func TestExtractVariablesSuccess(t *testing.T) {
 					type = "string"
 				}`,
 			},
-			expected: VariableMap{
-				"var": cty.ObjectVal(VariableMap{}),
-				"local": cty.ObjectVal(VariableMap{
+			expected: variables.VariableMap{
+				"var": cty.ObjectVal(variables.VariableMap{}),
+				"local": cty.ObjectVal(variables.VariableMap{
 					"dummy": cty.StringVal("dummy"),
 				}),
 			},
@@ -570,11 +571,11 @@ func TestExtractVariablesSuccess(t *testing.T) {
 					default = "test"
 				}`,
 			},
-			expected: VariableMap{
-				"var": cty.ObjectVal(VariableMap{
+			expected: variables.VariableMap{
+				"var": cty.ObjectVal(variables.VariableMap{
 					"test": cty.StringVal("test"),
 				}),
-				"local": cty.ObjectVal(VariableMap{
+				"local": cty.ObjectVal(variables.VariableMap{
 					"dummy": cty.StringVal("dummy"),
 				}),
 			},
@@ -589,9 +590,9 @@ func TestExtractVariablesSuccess(t *testing.T) {
 					default = null
 				}`,
 			},
-			expected: VariableMap{
-				"var": cty.ObjectVal(VariableMap{}),
-				"local": cty.ObjectVal(VariableMap{
+			expected: variables.VariableMap{
+				"var": cty.ObjectVal(variables.VariableMap{}),
+				"local": cty.ObjectVal(variables.VariableMap{
 					"dummy": cty.StringVal("dummy"),
 				}),
 			},
@@ -611,11 +612,11 @@ func TestExtractVariablesSuccess(t *testing.T) {
 					default = "test"
 				}`,
 			},
-			expected: VariableMap{
-				"var": cty.ObjectVal(VariableMap{
+			expected: variables.VariableMap{
+				"var": cty.ObjectVal(variables.VariableMap{
 					"test": cty.StringVal("test"),
 				}),
-				"local": cty.ObjectVal(VariableMap{
+				"local": cty.ObjectVal(variables.VariableMap{
 					"dummy": cty.StringVal("dummy"),
 				}),
 			},
@@ -630,9 +631,9 @@ func TestExtractVariablesSuccess(t *testing.T) {
 					default  = "us-central1"
 				}`,
 			},
-			expected: VariableMap{
-				"var": cty.ObjectVal(VariableMap{}),
-				"local": cty.ObjectVal(VariableMap{
+			expected: variables.VariableMap{
+				"var": cty.ObjectVal(variables.VariableMap{}),
+				"local": cty.ObjectVal(variables.VariableMap{
 					"dummy": cty.StringVal("dummy"),
 				}),
 			},
@@ -1126,7 +1127,7 @@ remote_user_addr_b_auto_tfvars = ["1.2.3.4/32"]
 				defer func() {
 					parseHclToJson = oldParseHclToJson
 				}()
-				parseHclToJson = func(fileName string, fileContent string, variableMap VariableMap) (string, error) {
+				parseHclToJson = func(fileName string, fileContent string, variableMap variables.VariableMap) (string, error) {
 					if fileName == "fail.tf" {
 						return "", tc.parseErr
 					}
@@ -1138,7 +1139,7 @@ remote_user_addr_b_auto_tfvars = ["1.2.3.4/32"]
 				defer func() {
 					extractVariables = oldExtractVariables
 				}()
-				extractVariables = func(fileName string, fileContent string) (VariableMap, error) {
+				extractVariables = func(fileName string, fileContent string) (variables.VariableMap, error) {
 					if fileName == "fail.tf" {
 						return nil, tc.extractErr
 					}

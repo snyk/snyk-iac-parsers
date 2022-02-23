@@ -13,6 +13,7 @@ import (
 
 	parsers "github.com/snyk/snyk-iac-parsers"
 	terraform "github.com/snyk/snyk-iac-parsers/terraform"
+	"github.com/snyk/snyk-iac-parsers/terraform/variables"
 )
 
 func runOpa() {
@@ -35,7 +36,7 @@ func runOpa() {
 				return nil, err
 			}
 
-			input, err := terraform.ParseHclToJson(filePath, string(content), terraform.VariableMap{})
+			input, err := terraform.ParseHclToJson(filePath, string(content), variables.VariableMap{})
 			if err != nil {
 				return nil, err
 			}

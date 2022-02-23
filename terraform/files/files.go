@@ -1,16 +1,27 @@
-package terraform
+package files
 
 import (
 	"sort"
 	"strings"
 )
 
+const (
+	TF          = ".tf"
+	TFVARS      = ".tfvars"
+	AUTO_TFVARS = ".auto.tfvars"
+
+	DEFAULT_TFVARS = "terraform.tfvars"
+)
+
+var VALID_VARIABLE_FILES = [...]string{TF, AUTO_TFVARS}
+var VALID_TERRAFORM_FILES = [...]string{TF}
+
 func isTerraformTfvarsFile(fileName string) bool {
 	// the terraform.tfvars file is a strict file name so make sure the file isn't called something like *terraform.tfvars
 	return fileName == DEFAULT_TFVARS || strings.HasSuffix(fileName, "/"+DEFAULT_TFVARS)
 }
 
-func isValidVariableFile(fileName string) bool {
+func IsValidVariableFile(fileName string) bool {
 	if isTerraformTfvarsFile(fileName) {
 		return true
 	}
@@ -22,7 +33,7 @@ func isValidVariableFile(fileName string) bool {
 	return false
 }
 
-func isValidTerraformFile(fileName string) bool {
+func IsValidTerraformFile(fileName string) bool {
 	for _, fileExt := range VALID_TERRAFORM_FILES {
 		if strings.HasSuffix(fileName, fileExt) {
 			return true
@@ -69,7 +80,7 @@ func createPrioritisableFile(fileName string) PrioritisableFile {
 	}
 }
 
-func orderFilesByPriority(fileNames []string) []string {
+func OrderFilesByPriority(fileNames []string) []string {
 	prioritisableFiles := make([]PrioritisableFile, 0, len(fileNames))
 
 	for _, fileName := range fileNames {

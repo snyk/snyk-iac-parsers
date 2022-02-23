@@ -1,9 +1,10 @@
-package terraform
+package variables
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/zclconf/go-cty/cty"
-	"testing"
 )
 
 func TestMergeVariablesFromTerraformFiles(t *testing.T) {
@@ -35,7 +36,7 @@ func TestMergeVariablesFromTerraformFiles(t *testing.T) {
 			"var3": cty.StringVal("val3"),
 		}),
 	}
-	actual := mergeVariables(input)
+	actual := MergeVariables(input)
 	assert.Equal(t, expected, actual)
 }
 
@@ -56,7 +57,7 @@ func TestMergeVariablesOverridesWithTerraformTfvars(t *testing.T) {
 			"var": cty.StringVal("val2"),
 		}),
 	}
-	actual := mergeVariables(input)
+	actual := MergeVariables(input)
 	assert.Equal(t, expected, actual)
 }
 
@@ -81,7 +82,7 @@ func TestMergeVariablesOverridesWithAnyAutoTfvars(t *testing.T) {
 			"var": cty.StringVal("val3"),
 		}),
 	}
-	actual := mergeVariables(input)
+	actual := MergeVariables(input)
 	assert.Equal(t, expected, actual)
 }
 
@@ -110,6 +111,6 @@ func TestMergeVariablesOverridesWithLexicalOrderAutoTfvars(t *testing.T) {
 			"var": cty.StringVal("val3"),
 		}),
 	}
-	actual := mergeVariables(input)
+	actual := MergeVariables(input)
 	assert.Equal(t, expected, actual)
 }
