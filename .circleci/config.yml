@@ -2,6 +2,7 @@ version: 2.1
 
 orbs:
   snyk: snyk/snyk@1.1.1
+  win: circleci/windows@2.4
 
 defaults: &defaults
   working_directory: ~/snyk-iac-parsers
@@ -13,6 +14,12 @@ commands:
       - run:
           name: Build
           command: go build ./...
+  test:
+    description: Runs the regression tests
+    steps:
+      - run:
+          name: Run Golang tests
+          command: go test ./...
 
 jobs:
   lint_and_format:
@@ -37,16 +44,23 @@ jobs:
       - run:
           name: "Run gofmt"
           command: "! gofmt -d -e . | read"
-  regression-test:
+  regression-test-linux:
     <<: *defaults
     docker:
       - image: circleci/golang:1.17
     steps:
       - checkout
       - build
-      - run:
-          name: Run Golang tests
-          command: go test ./...
+      - test
+  regression-test-windows:
+    <<: *defaults
+    executor:
+      name: win/default
+      size: medium
+    steps:
+      - checkout
+      - build
+      - test
   security-oss:
     docker:
       - image: cimg/go:1.17.2 
@@ -78,5 +92,7 @@ workflows:
           name: Snyk oss
       - security-code:
           name: Snyk code
-      - regression-test:
-          name: Regression Test
+      - regression-test-linux:
+          name: Regression Test (Linux)
+      - regression-test-windows:
+          name: Regression Test (Windows)
