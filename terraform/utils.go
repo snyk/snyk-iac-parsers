@@ -1,13 +1,15 @@
 package terraform
 
 import (
+	"fmt"
+	"os"
 	"sort"
 	"strings"
 )
 
 func isTerraformTfvarsFile(fileName string) bool {
 	// the terraform.tfvars file is a strict file name so make sure the file isn't called something like *terraform.tfvars
-	return fileName == DEFAULT_TFVARS || strings.HasSuffix(fileName, "/"+DEFAULT_TFVARS)
+	return fileName == DEFAULT_TFVARS || strings.HasSuffix(fileName, fmt.Sprintf("%c%s", os.PathSeparator, DEFAULT_TFVARS))
 }
 
 func isValidVariableFile(fileName string) bool {

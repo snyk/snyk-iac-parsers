@@ -2,6 +2,9 @@ package terraform
 
 import (
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -677,6 +680,10 @@ variable "dummy" {
 		}
 	}
 }`
+
+	filesystemFiles, filesystemExpected, err := setupFilesystemTests()
+	assert.Nil(t, err)
+
 	type test struct {
 		name       string
 		files      map[string]interface{}
@@ -847,182 +854,9 @@ variable "dummy" {
 				},
 			},
 		}, {
-			name: "Multiple valid .tf files with default variables, a terraform.tfvars file and multiple *.auto.tfvars files",
-			files: map[string]interface{}{
-				"variables.tf": `variable "remote_user_addr" {
-  type = list(string)
-  default = ["0.0.0.0/0"]
-}
-
-variable "remote_user_addr_terraform_tfvars" {
-  type = list(string)
-  default = ["1.2.3.4/32"]
-}
-
-variable "remote_user_addr_a_auto_tfvars" {
-  type = list(string)
-  default = ["1.2.3.4/32"]
-}
-
-variable "remote_user_addr_b_auto_tfvars" {
-  type = list(string)
-  default = ["1.2.3.4/32"]
-}`,
-				"test.tf": `resource "aws_security_group" "allow_ssh" {
-  name        = "allow_ssh"
-  description = "Allow SSH inbound from anywhere"
-  vpc_id      = "${aws_vpc.main.id}"
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = var.remote_user_addr
-  }
-}
-
-resource "aws_security_group" "allow_ssh_terraform_tfvars" {
-  name        = "allow_ssh"
-  description = "Allow SSH inbound from anywhere"
-  vpc_id      = "${aws_vpc.main.id}"
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = var.remote_user_addr_terraform_tfvars
-  }
-}
-
-resource "aws_security_group" "allow_ssh_a_auto_tfvars" {
-  name        = "allow_ssh"
-  description = "Allow SSH inbound from anywhere"
-  vpc_id      = "${aws_vpc.main.id}"
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = var.remote_user_addr_a_auto_tfvars
-  }
-}
-
-resource "aws_security_group" "allow_ssh_b_auto_tfvars" {
-  name        = "allow_ssh"
-  description = "Allow SSH inbound from anywhere"
-  vpc_id      = "${aws_vpc.main.id}"
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = var.remote_user_addr_b_auto_tfvars
-  }
-}`,
-				"terraform.tfvars": `remote_user_addr_terraform_tfvars = ["0.0.0.0/0"]
-
-remote_user_addr_a_auto_tfvars = ["1.2.3.4/32"]
-
-remote_user_addr_b_auto_tfvars = ["1.2.3.4/32"]
-
-`,
-				"a.auto.tfvars": `remote_user_addr_a_auto_tfvars = ["0.0.0.0/0"]
-
-remote_user_addr_b_auto_tfvars = ["1.2.3.4/32"]
-`,
-				"b.auto.tfvars": `remote_user_addr_b_auto_tfvars = ["0.0.0.0/0"]
-`,
-			},
-			expected: map[string]interface{}{
-				"debugLogs":   map[string]interface{}{},
-				"failedFiles": map[string]interface{}{},
-				"parsedFiles": map[string]interface{}{
-					"variables.tf": `{
-	"variable": {
-		"remote_user_addr": {
-			"default": [
-				"0.0.0.0/0"
-			],
-			"type": "${list(string)}"
-		},
-		"remote_user_addr_a_auto_tfvars": {
-			"default": [
-				"1.2.3.4/32"
-			],
-			"type": "${list(string)}"
-		},
-		"remote_user_addr_b_auto_tfvars": {
-			"default": [
-				"1.2.3.4/32"
-			],
-			"type": "${list(string)}"
-		},
-		"remote_user_addr_terraform_tfvars": {
-			"default": [
-				"1.2.3.4/32"
-			],
-			"type": "${list(string)}"
-		}
-	}
-}`,
-					"test.tf": `{
-	"resource": {
-		"aws_security_group": {
-			"allow_ssh": {
-				"description": "Allow SSH inbound from anywhere",
-				"ingress": {
-					"cidr_blocks": [
-						"0.0.0.0/0"
-					],
-					"from_port": 22,
-					"protocol": "tcp",
-					"to_port": 22
-				},
-				"name": "allow_ssh",
-				"vpc_id": "${aws_vpc.main.id}"
-			},
-			"allow_ssh_a_auto_tfvars": {
-				"description": "Allow SSH inbound from anywhere",
-				"ingress": {
-					"cidr_blocks": [
-						"0.0.0.0/0"
-					],
-					"from_port": 22,
-					"protocol": "tcp",
-					"to_port": 22
-				},
-				"name": "allow_ssh",
-				"vpc_id": "${aws_vpc.main.id}"
-			},
-			"allow_ssh_b_auto_tfvars": {
-				"description": "Allow SSH inbound from anywhere",
-				"ingress": {
-					"cidr_blocks": [
-						"0.0.0.0/0"
-					],
-					"from_port": 22,
-					"protocol": "tcp",
-					"to_port": 22
-				},
-				"name": "allow_ssh",
-				"vpc_id": "${aws_vpc.main.id}"
-			},
-			"allow_ssh_terraform_tfvars": {
-				"description": "Allow SSH inbound from anywhere",
-				"ingress": {
-					"cidr_blocks": [
-						"0.0.0.0/0"
-					],
-					"from_port": 22,
-					"protocol": "tcp",
-					"to_port": 22
-				},
-				"name": "allow_ssh",
-				"vpc_id": "${aws_vpc.main.id}"
-			}
-		}
-	}
-}`}},
+			name:     "Multiple valid .tf files with default variables, a terraform.tfvars file and multiple *.auto.tfvars files",
+			files:    filesystemFiles,
+			expected: filesystemExpected,
 		},
 		{
 			name: "Multiple files and one file with a user error at extract time",
@@ -1149,4 +983,120 @@ remote_user_addr_b_auto_tfvars = ["1.2.3.4/32"]
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
+}
+
+func setupFilesystemTests() (map[string]interface{}, map[string]interface{}, error) {
+	filesystemExpected := map[string]interface{}{
+		"debugLogs":   map[string]interface{}{},
+		"failedFiles": map[string]interface{}{},
+		"parsedFiles": map[string]interface{}{},
+	}
+
+	filesystemExpected["parsedFiles"].(map[string]interface{})[fmt.Sprintf("fixtures%cvariables.tf", os.PathSeparator)] = `{
+	"variable": {
+		"remote_user_addr": {
+			"default": [
+				"0.0.0.0/0"
+			],
+			"type": "${list(string)}"
+		},
+		"remote_user_addr_a_auto_tfvars": {
+			"default": [
+				"1.2.3.4/32"
+			],
+			"type": "${list(string)}"
+		},
+		"remote_user_addr_b_auto_tfvars": {
+			"default": [
+				"1.2.3.4/32"
+			],
+			"type": "${list(string)}"
+		},
+		"remote_user_addr_terraform_tfvars": {
+			"default": [
+				"1.2.3.4/32"
+			],
+			"type": "${list(string)}"
+		}
+	}
+}`
+	filesystemExpected["parsedFiles"].(map[string]interface{})[fmt.Sprintf("fixtures%ctest.tf", os.PathSeparator)] = `{
+	"resource": {
+		"aws_security_group": {
+			"allow_ssh": {
+				"description": "Allow SSH inbound from anywhere",
+				"ingress": {
+					"cidr_blocks": [
+						"0.0.0.0/0"
+					],
+					"from_port": 22,
+					"protocol": "tcp",
+					"to_port": 22
+				},
+				"name": "allow_ssh",
+				"vpc_id": "${aws_vpc.main.id}"
+			},
+			"allow_ssh_a_auto_tfvars": {
+				"description": "Allow SSH inbound from anywhere",
+				"ingress": {
+					"cidr_blocks": [
+						"0.0.0.0/0"
+					],
+					"from_port": 22,
+					"protocol": "tcp",
+					"to_port": 22
+				},
+				"name": "allow_ssh",
+				"vpc_id": "${aws_vpc.main.id}"
+			},
+			"allow_ssh_b_auto_tfvars": {
+				"description": "Allow SSH inbound from anywhere",
+				"ingress": {
+					"cidr_blocks": [
+						"0.0.0.0/0"
+					],
+					"from_port": 22,
+					"protocol": "tcp",
+					"to_port": 22
+				},
+				"name": "allow_ssh",
+				"vpc_id": "${aws_vpc.main.id}"
+			},
+			"allow_ssh_terraform_tfvars": {
+				"description": "Allow SSH inbound from anywhere",
+				"ingress": {
+					"cidr_blocks": [
+						"0.0.0.0/0"
+					],
+					"from_port": 22,
+					"protocol": "tcp",
+					"to_port": 22
+				},
+				"name": "allow_ssh",
+				"vpc_id": "${aws_vpc.main.id}"
+			}
+		}
+	}
+}`
+
+	// sets up the files that mimic data sent directly from the filesystem
+	filesystemFiles := map[string]interface{}{}
+	err := filepath.Walk("./fixtures", func(filePath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			fileContent, err := os.ReadFile(filePath)
+			if err != nil {
+				return err
+			}
+			filesystemFiles[filePath] = string(fileContent)
+		}
+		return nil
+	})
+	if err != nil {
+		return filesystemFiles, nil, err
+	}
+
+	return filesystemFiles, filesystemExpected, nil
 }
