@@ -11,6 +11,7 @@ func TestIsTerraformTfvarsFile(t *testing.T) {
 	assert.True(t, isTerraformTfvarsFile("terraform.tfvars"))
 	assert.True(t, isTerraformTfvarsFile(fmt.Sprintf("path%cto%cterraform.tfvars", os.PathSeparator, os.PathSeparator)))
 	assert.False(t, isTerraformTfvarsFile("test_terraform.tfvars"))
+	assert.True(t, isTerraformTfvarsFile("C:\\\\path\\\\to\\\\terraform.tfvars"))
 }
 
 func TestIsValidVariableFile(t *testing.T) {

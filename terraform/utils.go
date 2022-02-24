@@ -2,14 +2,15 @@ package terraform
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 )
 
+// the terraform.tfvars file is a strict file name so make sure the file isn't called something like *terraform.tfvars
 func isTerraformTfvarsFile(fileName string) bool {
-	// the terraform.tfvars file is a strict file name so make sure the file isn't called something like *terraform.tfvars
-	return fileName == DEFAULT_TFVARS || strings.HasSuffix(fileName, fmt.Sprintf("%c%s", os.PathSeparator, DEFAULT_TFVARS))
+	// the CLI uses this library by compiling it through gopherjs for Linux so for Windows we must remove backward slashes
+	osFileName := strings.Replace(fileName, "\\", "/", -1)
+	return fileName == DEFAULT_TFVARS || strings.HasSuffix(osFileName, fmt.Sprintf("/%s", DEFAULT_TFVARS))
 }
 
 func isValidVariableFile(fileName string) bool {
