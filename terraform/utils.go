@@ -25,6 +25,15 @@ func isValidInputVariablesFile(fileName string) bool {
 	return false
 }
 
+func isValidLocalsFile(fileName string) bool {
+	for _, fileExt := range VALID_TERRAFORM_FILES {
+		if strings.HasSuffix(fileName, fileExt) {
+			return true
+		}
+	}
+	return false
+}
+
 func isValidTerraformFile(fileName string) bool {
 	for _, fileExt := range VALID_TERRAFORM_FILES {
 		if strings.HasSuffix(fileName, fileExt) {

@@ -51,6 +51,16 @@ var extractInputVariables = func(file File) (ValueMap, error) {
 	return fileInputVariablesMap, nil
 }
 
+// extractLocals extracts the input values from the provided file
+var extractLocals = func(file File) (ValueMap, error) {
+	localsMap, diagnostics := extractLocalsFromFile(file)
+	if diagnostics.HasErrors() {
+		return ValueMap{}, createInvalidHCLError(diagnostics.Errs())
+	}
+
+	return localsMap, nil
+}
+
 // ParseHclToJson parses a provided HCL file to JSON and dereferences any known variables using the provided variables
 func ParseHclToJson(fileName string, fileContent string, variables ModuleVariables) (string, error) {
 	file, diagnostics := hclsyntax.ParseConfig([]byte(fileContent), fileName, hcl.Pos{Line: 1, Column: 1})
@@ -137,8 +147,29 @@ func extractModuleVariables(files map[string]File, parseRes *ParseModuleResult) 
 	// merge inputs so they can be used across multiple files
 	inputsMap := mergeInputVariables(inputsByFile)
 
+	localsMap := ValueMap{}
+
+	for fileName, file := range files {
+		if _, ok := parseRes.failedFiles[fileName]; !ok && isValidLocalsFile(fileName) {
+			res, err := extractLocals(file)
+			if err != nil {
+				// skip non-user errors
+				if isUserError(err) {
+					parseRes.debugLogs[fileName] = GenerateDebugLogs(err)
+					parseRes.failedFiles[fileName] = err.Error()
+				}
+				continue
+			}
+
+			for localName, localVal := range res {
+				localsMap[localName] = localVal
+			}
+		}
+	}
+
 	return ModuleVariables{
 		inputs: inputsMap,
+		locals: localsMap,
 	}
 }
 
