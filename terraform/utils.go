@@ -13,7 +13,7 @@ func isTerraformTfvarsFile(fileName string) bool {
 	return fileName == DEFAULT_TFVARS || strings.HasSuffix(osFileName, fmt.Sprintf("/%s", DEFAULT_TFVARS))
 }
 
-func isValidVariableFile(fileName string) bool {
+func isValidInputsFile(fileName string) bool {
 	if isTerraformTfvarsFile(fileName) {
 		return true
 	}

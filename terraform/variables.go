@@ -1,44 +1,46 @@
 package terraform
 
 import (
+	"strings"
+
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
-	"strings"
 )
 
-type VariableMap map[string]cty.Value
+type ValueMap map[string]cty.Value
 
-func extractFromFile(fileName string, file *hcl.File) (VariableMap, hcl.Diagnostics) {
-	varMap := VariableMap{}
+type ModuleVariables struct {
+	inputs ValueMap
+	locals ValueMap
+}
 
-	var variables VariableMap
+type ParserVariables map[string]ValueMap
+
+type InputsByFile map[string]ValueMap
+
+func extractInputsFromFile(fileName string, file *hcl.File) (ValueMap, hcl.Diagnostics) {
+	var inputs ValueMap
 	var hclDiags hcl.Diagnostics
 	if strings.HasSuffix(fileName, TF) {
-		variables, hclDiags = extractFromTfFile(file)
-		if hclDiags.HasErrors() {
-			return varMap, hclDiags
-		}
+		inputs, hclDiags = extractInputsFromTfFile(file)
 	} else if strings.HasSuffix(fileName, TFVARS) {
-		variables, hclDiags = extractFromTfvarsFile(file)
+		inputs, hclDiags = extractInputsFromTfvarsFile(file)
 	}
 
-	varMap["var"] = cty.ObjectVal(variables)
+	if hclDiags.HasErrors() {
+		return inputs, hclDiags
+	}
 
-	// TODO: remove temporary dummy locals and implement local values
-	varMap["local"] = cty.ObjectVal(VariableMap{
-		"dummy": cty.StringVal("dummy"),
-	})
-
-	return varMap, hclDiags
+	return inputs, hclDiags
 }
 
 // Logic inspired from https://github.com/hashicorp/terraform/blob/f266d1ee82d1fa4d882c146cc131fec4bef753cf/internal/configs/named_values.go#L113
-func extractFromTfFile(file *hcl.File) (VariableMap, hcl.Diagnostics) {
-	varMap := VariableMap{}
+func extractInputsFromTfFile(file *hcl.File) (ValueMap, hcl.Diagnostics) {
+	inputsMap := ValueMap{}
 
 	bodyContent, _, hclDiags := file.Body.PartialContent(tfFileVariableSchema)
 	if hclDiags.HasErrors() {
-		return varMap, hclDiags
+		return inputsMap, hclDiags
 	}
 
 	for _, block := range bodyContent.Blocks {
@@ -52,15 +54,15 @@ func extractFromTfFile(file *hcl.File) (VariableMap, hcl.Diagnostics) {
 				continue
 			}
 
-			varMap[name] = value
+			inputsMap[name] = value
 		}
 	}
 
-	return varMap, hclDiags
+	return inputsMap, hclDiags
 }
 
-func extractFromTfvarsFile(file *hcl.File) (VariableMap, hcl.Diagnostics) {
-	varMap := VariableMap{}
+func extractInputsFromTfvarsFile(file *hcl.File) (ValueMap, hcl.Diagnostics) {
+	inputsMap := ValueMap{}
 
 	attrs, hclDiags := file.Body.JustAttributes()
 
@@ -69,33 +71,27 @@ func extractFromTfvarsFile(file *hcl.File) (VariableMap, hcl.Diagnostics) {
 		if diags.HasErrors() {
 			continue
 		}
-		varMap[name] = value
+		inputsMap[name] = value
 	}
-	return varMap, hclDiags
+	return inputsMap, hclDiags
 }
 
-func mergeVariables(variableMaps map[string]VariableMap) VariableMap {
-	combinedVariableMaps := make(VariableMap)
+func mergeInputs(inputsByFile InputsByFile) ValueMap {
+	combinedInputs := make(ValueMap)
 
-	combinedVars := make(map[string]cty.Value)
-
-	fileNames := make([]string, 0, len(variableMaps))
-	for fileName := range variableMaps {
+	fileNames := make([]string, 0, len(inputsByFile))
+	for fileName := range inputsByFile {
 		fileNames = append(fileNames, fileName)
 	}
 
 	prioritisedFileNames := orderFilesByPriority(fileNames)
 
 	for _, fileName := range prioritisedFileNames {
-		variableMap := variableMaps[fileName]["var"].AsValueMap()
-		for variable, value := range variableMap {
-			combinedVars[variable] = value
+		inputsMap := inputsByFile[fileName]
+		for input, value := range inputsMap {
+			combinedInputs[input] = value
 		}
 	}
 
-	combinedVariableMaps["var"] = cty.ObjectVal(combinedVars)
-
-	// TODO: merge locals too once supported
-
-	return combinedVariableMaps
+	return combinedInputs
 }

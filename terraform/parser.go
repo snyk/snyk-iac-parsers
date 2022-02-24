@@ -2,10 +2,11 @@ package terraform
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/zclconf/go-cty/cty"
 	ctyconvert "github.com/zclconf/go-cty/cty/convert"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
-	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -19,20 +20,36 @@ type Options struct {
 
 type Parser struct {
 	bytes     []byte
-	variables VariableMap
+	variables ValueMap
+	options   Options
+}
+
+type NewParserParams struct {
+	bytes     []byte
+	variables ModuleVariables
 	options   Options
 }
 
 type JSON = map[string]interface{}
 
-func parseFile(file *hcl.File, variables VariableMap) (JSON, error) {
-	parser := Parser{
+func NewParser(params NewParserParams) Parser {
+	return Parser{
+		bytes: params.bytes,
+		variables: ValueMap{
+			"var":   cty.ObjectVal(params.variables.inputs),
+			"local": cty.ObjectVal(params.variables.locals),
+		},
+		options: params.options,
+	}
+}
+
+func parseFile(file *hcl.File, variables ModuleVariables) (JSON, error) {
+	parser := NewParser(NewParserParams{
 		bytes:     file.Bytes,
 		variables: variables,
 		options: Options{
 			Simplify: true,
-		},
-	}
+		}})
 
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {

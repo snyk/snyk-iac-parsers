@@ -2,6 +2,7 @@ package terraform
 
 import (
 	"encoding/json"
+
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
@@ -13,15 +14,15 @@ func ParseModule(files map[string]interface{}) map[string]interface{} {
 	parsedFiles := make(map[string]interface{})
 	debugLogs := make(map[string]interface{})
 
-	variablesMaps := map[string]VariableMap{}
+	inputsByFile := InputsByFile{}
 	for fileName, fileContentInterface := range files {
-		if isValidVariableFile(fileName) {
+		if isValidInputsFile(fileName) {
 			// need to use interface{} for gopherjs, so cast it back to string
 			fileContent, ok := fileContentInterface.(string)
 			if !ok {
 				continue
 			}
-			variableMap, err := extractVariables(fileName, fileContent)
+			inputsMap, err := extractInputs(fileName, fileContent)
 			if err != nil {
 				// skip non-user errors
 				if isUserError(err) {
@@ -30,17 +31,21 @@ func ParseModule(files map[string]interface{}) map[string]interface{} {
 				}
 				continue
 			}
-			variablesMaps[fileName] = variableMap
+			inputsByFile[fileName] = inputsMap
 		}
 	}
 
-	// merge variables so they can be used across multiple files
-	variableMap := mergeVariables(variablesMaps)
+	// merge inputs so they can be used across multiple files
+	inputsMap := mergeInputs(inputsByFile)
+
+	vars := ModuleVariables{
+		inputs: inputsMap,
+	}
 
 	for fileName, fileContent := range files {
 		// failedFiles contains user errors so if the file failed at extract time, we don't try to parse it
 		if isValidTerraformFile(fileName) && failedFiles[fileName] == nil {
-			parsedJson, err := parseHclToJson(fileName, fileContent.(string), variableMap)
+			parsedJson, err := parseHclToJson(fileName, fileContent.(string), vars)
 			if err != nil {
 				// skip non-user errors
 				if isUserError(err) {
@@ -60,23 +65,23 @@ func ParseModule(files map[string]interface{}) map[string]interface{} {
 	}
 }
 
-// extractVariables extracts the variables from the provided file
-var extractVariables = func(fileName string, fileContent string) (VariableMap, error) {
+// extractInputs extracts the input values from the provided file
+var extractInputs = func(fileName string, fileContent string) (ValueMap, error) {
 	file, diagnostics := hclsyntax.ParseConfig([]byte(fileContent), fileName, hcl.Pos{Line: 1, Column: 1})
 	if diagnostics.HasErrors() {
-		return VariableMap{}, createInvalidHCLError(diagnostics.Errs())
+		return ValueMap{}, createInvalidHCLError(diagnostics.Errs())
 	}
 
-	variables, diagnostics := extractFromFile(fileName, file)
+	fileInputsMap, diagnostics := extractInputsFromFile(fileName, file)
 	if diagnostics.HasErrors() {
-		return VariableMap{}, createInvalidHCLError(diagnostics.Errs())
+		return ValueMap{}, createInvalidHCLError(diagnostics.Errs())
 	}
 
-	return variables, nil
+	return fileInputsMap, nil
 }
 
 // ParseHclToJson parses a provided HCL file to JSON and dereferences any known variables using the provided variables
-func ParseHclToJson(fileName string, fileContent string, variables VariableMap) (string, error) {
+func ParseHclToJson(fileName string, fileContent string, variables ModuleVariables) (string, error) {
 	file, diagnostics := hclsyntax.ParseConfig([]byte(fileContent), fileName, hcl.Pos{Line: 1, Column: 1})
 	if diagnostics.HasErrors() {
 		return "", createInvalidHCLError(diagnostics.Errs())
