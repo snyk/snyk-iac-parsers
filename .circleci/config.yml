@@ -90,8 +90,12 @@ workflows:
           name: Lint & formatting
       - security-oss:
           name: Snyk oss
+          context:
+            - snyk-iac-seceng
       - security-code:
           name: Snyk code
+          context:
+            - snyk-iac-seceng
       - regression-test-linux:
           name: Regression Test (Linux)
       - regression-test-windows:
