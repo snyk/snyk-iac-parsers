@@ -939,6 +939,182 @@ variable "dummy" {
 				"debugLogs": map[string]interface{}{},
 			},
 		},
+		{
+			name: "Correctly dereferencing local values in a single file",
+			files: map[string]interface{}{
+				"test.tf": `
+				resource "aws_security_group" "allow_ssh" {
+					name        = "allow_ssh"
+					description = "Allow SSH inbound from anywhere"
+					cidr_blocks = local.dummy
+				}
+				
+				locals {
+					dummy = "Dummy Value"
+				}`,
+			},
+			parseErr: &CustomError{
+				message: "Internal error",
+				errors: []error{
+					errors.New("Test"),
+				},
+				userError: false,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{
+					"test.tf": `{
+	"locals": {
+		"dummy": "Dummy Value"
+	},
+	"resource": {
+		"aws_security_group": {
+			"allow_ssh": {
+				"cidr_blocks": "Dummy Value",
+				"description": "Allow SSH inbound from anywhere",
+				"name": "allow_ssh"
+			}
+		}
+	}
+}`,
+				},
+				"debugLogs": map[string]interface{}{},
+			},
+		},
+		{
+			name: "Correctly dereferencing local values in a multiple files",
+			files: map[string]interface{}{
+				"test.tf": `
+				locals {
+					dummy = "Dummy Value"
+				}`,
+				"test2.tf": `
+				resource "aws_security_group" "allow_ssh" {
+					name        = "allow_ssh"
+					description = "Allow SSH inbound from anywhere"
+					cidr_blocks = local.dummy
+				}`,
+			},
+			parseErr: &CustomError{
+				message: "Internal error",
+				errors: []error{
+					errors.New("Test"),
+				},
+				userError: false,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{"test.tf": `{
+	"locals": {
+		"dummy": "Dummy Value"
+	}
+}`, "test2.tf": `{
+	"resource": {
+		"aws_security_group": {
+			"allow_ssh": {
+				"cidr_blocks": "Dummy Value",
+				"description": "Allow SSH inbound from anywhere",
+				"name": "allow_ssh"
+			}
+		}
+	}
+}`},
+				"debugLogs": map[string]interface{}{},
+			},
+		},
+		{
+			name: "Correctly evaluating local expressions in a single file",
+			files: map[string]interface{}{
+				"test.tf": `
+				resource "aws_security_group" "allow_ssh" {
+					name        = "allow_ssh"
+					description = "Allow SSH inbound from anywhere"
+					cidr_blocks = local.dummy
+				}
+				
+				locals {
+					dummy = max(1+1, 999)
+				}`,
+			},
+			parseErr: &CustomError{
+				message: "Internal error",
+				errors: []error{
+					errors.New("Test"),
+				},
+				userError: false,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{
+					"test.tf": `{
+	"locals": {
+		"dummy": 999
+	},
+	"resource": {
+		"aws_security_group": {
+			"allow_ssh": {
+				"cidr_blocks": 999,
+				"description": "Allow SSH inbound from anywhere",
+				"name": "allow_ssh"
+			}
+		}
+	}
+}`,
+				},
+				"debugLogs": map[string]interface{}{},
+			},
+		},
+		{
+			name: "Correctly dereferencing local variable that references an input variable in a single file",
+			files: map[string]interface{}{
+				"test.tf": `
+				resource "aws_security_group" "allow_ssh" {
+					name        = "allow_ssh"
+					description = "Allow SSH inbound from anywhere"
+					cidr_blocks = local.dummy
+				}
+				
+				locals {
+					dummy = var.dummy
+				}
+				
+				variable "dummy" {
+					default = "Dummy Value"
+					type   = "string"
+				}`,
+			},
+			parseErr: &CustomError{
+				message: "Internal error",
+				errors: []error{
+					errors.New("Test"),
+				},
+				userError: false,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{"test.tf": `{
+	"locals": {
+		"dummy": "Dummy Value"
+	},
+	"resource": {
+		"aws_security_group": {
+			"allow_ssh": {
+				"cidr_blocks": "Dummy Value",
+				"description": "Allow SSH inbound from anywhere",
+				"name": "allow_ssh"
+			}
+		}
+	},
+	"variable": {
+		"dummy": {
+			"default": "Dummy Value",
+			"type": "string"
+		}
+	}
+}`},
+				"debugLogs": map[string]interface{}{},
+			},
+		},
 	}
 
 	for _, tc := range tests {

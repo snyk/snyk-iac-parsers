@@ -150,7 +150,7 @@ func extractModuleVariables(files map[string]File, parseRes *ParseModuleResult) 
 	localsMap := ValueMap{}
 
 	for fileName, file := range files {
-		if _, ok := parseRes.failedFiles[fileName]; !ok && isValidLocalsFile(fileName) {
+		if _, ok := parseRes.failedFiles[fileName]; !ok && isValidTerraformFile(fileName) {
 			res, err := extractLocals(file, inputsMap)
 			if err != nil {
 				// skip non-user errors
