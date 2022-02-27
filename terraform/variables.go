@@ -34,14 +34,29 @@ func extractInputVariablesFromFile(file File) (ValueMap, hcl.Diagnostics) {
 	return inputVariables, hclDiags
 }
 
-func extractLocalsFromFile(file File) (ValueMap, hcl.Diagnostics) {
-	var localsMap ValueMap
+func extractLocalsFromFile(file File, inputsMap ValueMap) (ValueMap, hcl.Diagnostics) {
+	var localsMap = ValueMap{}
 	var hclDiags hcl.Diagnostics
 
-	localsMap, hclDiags = extractLocalsFromTfFile(file)
-
+	bodyContent, _, hclDiags := file.hclFile.Body.PartialContent(tfFileLocalSchema)
 	if hclDiags.HasErrors() {
 		return localsMap, hclDiags
+	}
+
+	for _, block := range bodyContent.Blocks {
+		attrs, _ := block.Body.JustAttributes()
+		for localName, attr := range attrs {
+			localVal, diags := attr.Expr.Value(&hcl.EvalContext{
+				Functions: terraformFunctions,
+				Variables: NewParserVariables(ModuleVariables{
+					inputs: inputsMap,
+				}),
+			})
+			if diags.HasErrors() {
+				continue
+			}
+			localsMap[localName] = localVal
+		}
 	}
 
 	return localsMap, hclDiags
@@ -107,27 +122,4 @@ func mergeInputVariables(inputVariablesByFile InputVariablesByFile) ValueMap {
 	}
 
 	return combinedInputVariables
-}
-
-// Logic inspired from https://github.com/hashicorp/terraform/blob/f266d1ee82d1fa4d882c146cc131fec4bef753cf/internal/configs/named_values.go#L113
-func extractLocalsFromTfFile(file File) (ValueMap, hcl.Diagnostics) {
-	localsMap := ValueMap{}
-
-	bodyContent, _, hclDiags := file.hclFile.Body.PartialContent(tfFileLocalSchema)
-	if hclDiags.HasErrors() {
-		return localsMap, hclDiags
-	}
-
-	for _, block := range bodyContent.Blocks {
-		attrs, _ := block.Body.JustAttributes()
-		for localName, attr := range attrs {
-			localVal, diags := attr.Expr.Value(&hcl.EvalContext{Functions: terraformFunctions})
-			if diags.HasErrors() || localVal.IsNull() {
-				continue
-			}
-			localsMap[localName] = localVal
-		}
-	}
-
-	return localsMap, hclDiags
 }

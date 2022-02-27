@@ -52,8 +52,8 @@ var extractInputVariables = func(file File) (ValueMap, error) {
 }
 
 // extractLocals extracts the input values from the provided file
-var extractLocals = func(file File) (ValueMap, error) {
-	localsMap, diagnostics := extractLocalsFromFile(file)
+var extractLocals = func(file File, inputsMap ValueMap) (ValueMap, error) {
+	localsMap, diagnostics := extractLocalsFromFile(file, inputsMap)
 	if diagnostics.HasErrors() {
 		return ValueMap{}, createInvalidHCLError(diagnostics.Errs())
 	}
@@ -151,7 +151,7 @@ func extractModuleVariables(files map[string]File, parseRes *ParseModuleResult) 
 
 	for fileName, file := range files {
 		if _, ok := parseRes.failedFiles[fileName]; !ok && isValidLocalsFile(fileName) {
-			res, err := extractLocals(file)
+			res, err := extractLocals(file, inputsMap)
 			if err != nil {
 				// skip non-user errors
 				if isUserError(err) {
