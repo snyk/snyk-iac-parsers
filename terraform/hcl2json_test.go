@@ -1115,6 +1115,81 @@ variable "dummy" {
 				"debugLogs": map[string]interface{}{},
 			},
 		},
+		{
+			name: "Correctly dereferencing local variable that references other local variables",
+			files: map[string]interface{}{
+				"test1.tf": `
+resource "aws_security_group" "allow_ssh" {
+	name        = "allow_ssh"
+	description = "Allow SSH inbound from anywhere"
+	cidr_blocks = local.d9
+}
+
+locals {
+	d8 = local.d7 + 1
+	d6 = local.d5 + 1
+	d4 = local.d3 + 1
+	d2 = local.d1 + 1
+}
+
+variable "dummy" {
+	default = 1
+	type   = number
+}`,
+				"test2.tf": `
+locals {
+	d9 = local.d8 + 1
+	d7 = local.d6 + 1
+	d5 = local.d4 + 1
+	d3 = local.d2 + 1
+	d1 = var.dummy
+}`,
+			},
+			parseErr: &CustomError{
+				message: "Internal error",
+				errors: []error{
+					errors.New("Test"),
+				},
+				userError: false,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{
+					"test1.tf": `{
+	"locals": {
+		"d2": 2,
+		"d4": 4,
+		"d6": 6,
+		"d8": 8
+	},
+	"resource": {
+		"aws_security_group": {
+			"allow_ssh": {
+				"cidr_blocks": 9,
+				"description": "Allow SSH inbound from anywhere",
+				"name": "allow_ssh"
+			}
+		}
+	},
+	"variable": {
+		"dummy": {
+			"default": 1,
+			"type": "${number}"
+		}
+	}
+}`,
+					"test2.tf": `{
+	"locals": {
+		"d1": 1,
+		"d3": 3,
+		"d5": 5,
+		"d7": 7,
+		"d9": 9
+	}
+}`},
+				"debugLogs": map[string]interface{}{},
+			},
+		},
 	}
 
 	for _, tc := range tests {

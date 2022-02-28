@@ -52,13 +52,13 @@ var extractInputVariables = func(file File) (ValueMap, error) {
 }
 
 // extractLocals extracts the input values from the provided file
-var extractLocals = func(file File, inputsMap ValueMap) (ValueMap, error) {
-	localsMap, diagnostics := extractLocalsFromFile(file, inputsMap)
+var extractLocals = func(file File) (ExpressionMap, error) {
+	localsExprsMap, diagnostics := extractLocalsFromFile(file)
 	if diagnostics.HasErrors() {
-		return ValueMap{}, createInvalidHCLError(diagnostics.Errs())
+		return ExpressionMap{}, createInvalidHCLError(diagnostics.Errs())
 	}
 
-	return localsMap, nil
+	return localsExprsMap, nil
 }
 
 // ParseHclToJson parses a provided HCL file to JSON and dereferences any known variables using the provided variables
@@ -147,11 +147,10 @@ func extractModuleVariables(files map[string]File, parseRes *ParseModuleResult) 
 	// merge inputs so they can be used across multiple files
 	inputsMap := mergeInputVariables(inputsByFile)
 
-	localsMap := ValueMap{}
-
+	localExprsMap := ExpressionMap{}
 	for fileName, file := range files {
-		if _, ok := parseRes.failedFiles[fileName]; !ok && isValidTerraformFile(fileName) {
-			res, err := extractLocals(file, inputsMap)
+		if isValidTerraformFile(fileName) {
+			fileLocals, err := extractLocals(file)
 			if err != nil {
 				// skip non-user errors
 				if isUserError(err) {
@@ -161,11 +160,13 @@ func extractModuleVariables(files map[string]File, parseRes *ParseModuleResult) 
 				continue
 			}
 
-			for localName, localVal := range res {
-				localsMap[localName] = localVal
+			for localName, localVal := range fileLocals {
+				localExprsMap[localName] = localVal
 			}
 		}
 	}
+
+	localsMap := dereferenceLocals(localExprsMap, inputsMap)
 
 	return ModuleVariables{
 		inputs: inputsMap,

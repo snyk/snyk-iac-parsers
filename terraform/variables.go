@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"reflect"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -8,6 +9,8 @@ import (
 )
 
 type ValueMap map[string]cty.Value
+
+type ExpressionMap map[string]hcl.Expression
 
 type ModuleVariables struct {
 	inputs ValueMap
@@ -34,32 +37,22 @@ func extractInputVariablesFromFile(file File) (ValueMap, hcl.Diagnostics) {
 	return inputVariables, hclDiags
 }
 
-func extractLocalsFromFile(file File, inputsMap ValueMap) (ValueMap, hcl.Diagnostics) {
-	var localsMap = ValueMap{}
-	var hclDiags hcl.Diagnostics
+func extractLocalsFromFile(file File) (ExpressionMap, hcl.Diagnostics) {
+	localExprsMap := ExpressionMap{}
 
 	bodyContent, _, hclDiags := file.hclFile.Body.PartialContent(tfFileLocalSchema)
 	if hclDiags.HasErrors() {
-		return localsMap, hclDiags
+		return localExprsMap, hclDiags
 	}
 
 	for _, block := range bodyContent.Blocks {
 		attrs, _ := block.Body.JustAttributes()
 		for localName, attr := range attrs {
-			localVal, diags := attr.Expr.Value(&hcl.EvalContext{
-				Functions: terraformFunctions,
-				Variables: NewParserVariables(ModuleVariables{
-					inputs: inputsMap,
-				}),
-			})
-			if diags.HasErrors() {
-				continue
-			}
-			localsMap[localName] = localVal
+			localExprsMap[localName] = attr.Expr
 		}
 	}
 
-	return localsMap, hclDiags
+	return localExprsMap, hclDiags
 }
 
 // Logic inspired from https://github.com/hashicorp/terraform/blob/f266d1ee82d1fa4d882c146cc131fec4bef753cf/internal/configs/named_values.go#L113
@@ -122,4 +115,39 @@ func mergeInputVariables(inputVariablesByFile InputVariablesByFile) ValueMap {
 	}
 
 	return combinedInputVariables
+}
+
+var maxLocalsDerefIterations = 32
+
+func dereferenceLocals(localExprsMap ExpressionMap, inputs ValueMap) ValueMap {
+	currLocalVals := ValueMap{}
+	prevLocalVals := ValueMap{}
+
+	for i := 0; i < maxLocalsDerefIterations; i++ {
+		for localName, localExpr := range localExprsMap {
+			newLocalVal, hclDiags := localExpr.Value(&hcl.EvalContext{
+				Variables: NewParserVariables(ModuleVariables{
+					inputs: inputs,
+					locals: currLocalVals,
+				}),
+				Functions: terraformFunctions,
+			})
+
+			if !newLocalVal.IsKnown() || hclDiags.HasErrors() {
+				continue
+			}
+
+			currLocalVals[localName] = newLocalVal
+		}
+
+		if reflect.DeepEqual(currLocalVals, prevLocalVals) {
+			break
+		}
+
+		for localName, localVal := range currLocalVals {
+			prevLocalVals[localName] = localVal
+		}
+	}
+
+	return currLocalVals
 }
