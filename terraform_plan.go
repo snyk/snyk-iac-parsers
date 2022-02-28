@@ -27,10 +27,20 @@ type TerraformPlanResourceChange struct {
 		Before  map[string]interface{} // will be null when the action is `create`
 		After   map[string]interface{} // will be null when then action is `delete`
 	}
+	Expressions interface{} `json:"expressions"`
+}
+
+type TerraformPlanModule struct {
+	Resources []TerraformPlanResourceChange `json:"resources"`
+}
+
+type TerraformPlanConfiguration struct {
+	RootModule TerraformPlanModule `json:"root_module"`
 }
 
 type TerraformPlanJson struct {
 	ResourceChanges []TerraformPlanResourceChange `json:"resource_changes"`
+	Configuration   TerraformPlanConfiguration    `json:"configuration"`
 }
 
 type TerraformScanInput map[string]map[string]map[string]interface{}
@@ -72,7 +82,64 @@ func parseTerraformPlan(planJson TerraformPlanJson, isFullScan bool) TerraformSc
 			}
 		}
 	}
+
+	// check root module for references in first depth of attributes
+	for _, resource := range planJson.Configuration.RootModule.Resources {
+		// don't care about references in data sources for time being
+		if resource.Mode == "data" {
+			continue
+		}
+		mode := "resource"
+		// only update the references in resources that have some resolved attributes already
+		if resolvedResource, ok := scanInput[mode][resource.Type][getResourceName(resource)].(map[string]interface{}); ok {
+			expressions := getExpressions(resource.Expressions)
+			for k, v := range expressions {
+				// only add non existing attributes. If we already have resolved value do not overwrite it with reference
+				if _, ok := resolvedResource[k]; !ok {
+					resolvedResource[k] = v
+				}
+			}
+			scanInput[mode][resource.Type][getResourceName(resource)] = resolvedResource
+		}
+	}
+
 	return scanInput
+}
+
+func getExpressions(expressions interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
+	// expressions can be nested. we are only doing 1 depth to resolve top level depenencies
+	expressionMap, ok := expressions.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	for k, v := range expressionMap {
+		referenceKey, ok := getReference(v)
+		if ok {
+			result[k] = referenceKey
+		}
+	}
+	return result
+}
+
+// this is very naive implementation
+// the referenences can be composed of number of keys
+// we only going to use the first reference for time being
+func getReference(value interface{}) (interface{}, bool) {
+	v, ok := value.(map[string]interface{})
+	if !ok {
+		return "", false
+	}
+	// we are only interested with "references" values
+	referencesInt, ok := v["references"]
+	if !ok {
+		return "", false
+	}
+	references, ok := referencesInt.([]interface{})
+	if !ok {
+		return "", false
+	}
+	return references[0], true
 }
 
 func getResourceName(resource TerraformPlanResourceChange) string {
