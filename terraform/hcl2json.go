@@ -1,8 +1,6 @@
 package terraform
 
 import (
-	"encoding/json"
-
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
@@ -19,7 +17,7 @@ type ParseModuleResult struct {
 	debugLogs   map[string]interface{}
 }
 
-// ParseModule iterated through all the provided files in a module (.tf, terraform.tfvars, and *.auto.tfvars files)
+// ParseModule iterates through all the provided files in a module (.tf, terraform.tfvars, and *.auto.tfvars files)
 // It extracts the variables from each one, merges them, and dereferences them one by one
 func ParseModule(rawFiles map[string]interface{}) map[string]interface{} {
 	parseRes := &ParseModuleResult{
@@ -39,46 +37,6 @@ func ParseModule(rawFiles map[string]interface{}) map[string]interface{} {
 		"failedFiles": parseRes.failedFiles,
 		"debugLogs":   parseRes.debugLogs,
 	}
-}
-
-// extractInputVariables extracts the input variables values from the provided file
-var extractInputVariables = func(file File) (ValueMap, error) {
-	fileInputVariablesMap, diagnostics := extractInputVariablesFromFile(file)
-	if diagnostics.HasErrors() {
-		return ValueMap{}, createInvalidHCLError(diagnostics.Errs())
-	}
-
-	return fileInputVariablesMap, nil
-}
-
-// extractLocals extracts the input values from the provided file
-var extractLocals = func(file File, inputsMap ValueMap) (ValueMap, error) {
-	localsMap, diagnostics := extractLocalsFromFile(file, inputsMap)
-	if diagnostics.HasErrors() {
-		return ValueMap{}, createInvalidHCLError(diagnostics.Errs())
-	}
-
-	return localsMap, nil
-}
-
-// ParseHclToJson parses a provided HCL file to JSON and dereferences any known variables using the provided variables
-func ParseHclToJson(fileName string, fileContent string, variables ModuleVariables) (string, error) {
-	file, diagnostics := hclsyntax.ParseConfig([]byte(fileContent), fileName, hcl.Pos{Line: 1, Column: 1})
-	if diagnostics.HasErrors() {
-		return "", createInvalidHCLError(diagnostics.Errs())
-	}
-
-	parsedFile, err := parseFile(file, variables)
-	if err != nil {
-		return "", createInternalHCLParsingError([]error{err})
-	}
-
-	jsonBytes, err := json.MarshalIndent(parsedFile, "", "\t")
-	if err != nil {
-		return "", createInternalJSONParsingError([]error{err})
-	}
-
-	return string(jsonBytes), nil
 }
 
 func processFiles(rawFiles map[string]interface{}, parseRes *ParseModuleResult) map[string]File {
@@ -128,49 +86,35 @@ func parseModuleFiles(files map[string]File, vars ModuleVariables, parseRes *Par
 
 func extractModuleVariables(files map[string]File, parseRes *ParseModuleResult) ModuleVariables {
 	inputsByFile := InputVariablesByFile{}
+	localExprsMap := ExpressionMap{}
 
 	for fileName, file := range files {
-		if isValidInputVariablesFile(fileName) {
-			inputsMap, err := extractInputVariables(file)
-			if err != nil {
-				// skip non-user errors
-				if isUserError(err) {
-					parseRes.debugLogs[fileName] = GenerateDebugLogs(err)
-					parseRes.failedFiles[fileName] = err.Error()
-				}
-				continue
+		inputsMap, localsMap, err := extractVariables(file)
+		if err != nil {
+			// skip non-user errors
+			if isUserError(err) {
+				parseRes.debugLogs[fileName] = GenerateDebugLogs(err)
+				parseRes.failedFiles[fileName] = err.Error()
 			}
-			inputsByFile[fileName] = inputsMap
+		}
+		inputsByFile[fileName] = inputsMap
+		for localName, localVal := range localsMap {
+			localExprsMap[localName] = localVal
 		}
 	}
 
-	// merge inputs so they can be used across multiple files
-	inputsMap := mergeInputVariables(inputsByFile)
+	// merge inputs so they can be prioritised and used across multiple files
+	inputs := mergeInputVariables(inputsByFile)
 
-	localsMap := ValueMap{}
-
-	for fileName, file := range files {
-		if _, ok := parseRes.failedFiles[fileName]; !ok && isValidTerraformFile(fileName) {
-			res, err := extractLocals(file, inputsMap)
-			if err != nil {
-				// skip non-user errors
-				if isUserError(err) {
-					parseRes.debugLogs[fileName] = GenerateDebugLogs(err)
-					parseRes.failedFiles[fileName] = err.Error()
-				}
-				continue
-			}
-
-			for localName, localVal := range res {
-				localsMap[localName] = localVal
-			}
-		}
-	}
+	// dereference locals in case they reference each other or other input variables
+	locals := dereferenceLocals(localExprsMap, inputs)
 
 	return ModuleVariables{
-		inputs: inputsMap,
-		locals: localsMap,
+		inputs: inputs,
+		locals: locals,
 	}
 }
 
-var parseHclToJson = ParseHclToJson // used for mocking in the tests
+// used for mocking in the tests
+var parseHclToJson = ParseHclToJson
+var extractVariables = ExtractVariables

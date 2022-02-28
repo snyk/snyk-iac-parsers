@@ -7,637 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/zclconf/go-cty/cty"
 )
-
-func TestParseHCL2JSONSuccess(t *testing.T) {
-	type test struct {
-		name      string
-		input     string
-		variables ModuleVariables
-		expected  string
-	}
-
-	tests := []test{
-		{
-			name: "Nested block inside a labelled block",
-			input: `
-block "label_one" "label_two" {
-	nested_block { }
-}`,
-			expected: `{
-	"block": {
-		"label_one": {
-			"label_two": {
-				"nested_block": {}
-			}
-		}
-	}
-}`,
-		},
-		{
-			name: "Two simple blocks",
-			input: `
-block "label_one" {
-}
-block "label_one" {
-}
-`,
-			expected: `{
-	"block": {
-		"label_one": [
-			{},
-			{}
-		]
-	}
-}`,
-		},
-		{
-			name: "Block with multiple labels and no attributes",
-			input: `
-resource "test1" "test2" {
-}
-
-resource "test1" "test3" {
-}
-`,
-			expected: `{
-	"resource": {
-		"test1": {
-			"test2": {},
-			"test3": {}
-		}
-	}
-}`,
-		},
-		{
-			name: "Block with a literal value attribute",
-			input: `
-block "label_one" {
-	attribute = "value"
-}`,
-			expected: `{
-	"block": {
-		"label_one": {
-			"attribute": "value"
-		}
-	}
-}`,
-		},
-		{
-			name: "Block with a unary operation expression attribute",
-			input: `
-block "label_one" {
-	attribute = -1
-}`,
-			expected: `{
-	"block": {
-		"label_one": {
-			"attribute": -1
-		}
-	}
-}`,
-		},
-		{
-			name: "Block with a template expression attribute",
-			input: `
-block "label_one" {
-	attribute = "${1 + 2}"
-}`,
-			expected: `{
-	"block": {
-		"label_one": {
-			"attribute": 3
-		}
-	}
-}`,
-		},
-		{
-			name: "Block with a template expression attribute with a for loop wrapped in a string",
-			input: `
-block "label_one" {
-	attribute = "This has a for loop: %{for x in [1, 2, 3]}${x},%{endfor}"
-}`,
-			expected: `{
-	"block": {
-		"label_one": {
-			"attribute": "This has a for loop: 1,2,3,"
-		}
-	}
-}`,
-		},
-		{
-			name: "Block with a template expression attribute with an if statement wrapped in a string",
-			input: `
-block "label_one" {
-	attribute = "This has an if statement: %{ if true }true%{ else }false%{ endif }"
-}`,
-			expected: `{
-	"block": {
-		"label_one": {
-			"attribute": "This has an if statement: true"
-		}
-	}
-}`,
-		},
-		{
-			name: "Block with a conditional expression",
-			input: `
-block "label_one" {
-	attribute = true ? "true" : "false"
-}`,
-			expected: `{
-	"block": {
-		"label_one": {
-			"attribute": "true"
-		}
-	}
-}`,
-		},
-		{
-			name: "Block with a for expression attribute",
-			input: `locals {
-	thing = [for x in [1, 2, 3]: x * 2]
-}`,
-			expected: `{
-	"locals": {
-		"thing": [
-			2,
-			4,
-			6
-		]
-	}
-}`,
-		},
-		{
-			name: "Block with a splat expression",
-			input: `locals {
-	thing = [{"id": 1}, {"id": 2}, {"id": 3}][*].id
-}`,
-			expected: `{
-	"locals": {
-		"thing": [
-			1,
-			2,
-			3
-		]
-	}
-}`,
-		},
-		{
-			name: "Block with a scope traversal expression",
-			input: `locals {
-	thing = [1, 2, 3][1]
-}`,
-			expected: `{
-	"locals": {
-		"thing": 2
-	}
-}`,
-		},
-		{
-			name: "Block with an object cons expression",
-			input: `locals {
-	thing = {
-		a = "1"
-		b = "2"
-	}
-}`,
-			expected: `{
-	"locals": {
-		"thing": {
-			"a": "1",
-			"b": "2"
-		}
-	}
-}`,
-		},
-		{
-			name: "Block with heredoc",
-			input: `
-locals {
-	heredoc = <<EOF
-		Another heredoc, that
-		doesn't remove indentation
-	EOF
-}`,
-			expected: `{
-	"locals": {
-		"heredoc": "\t\tAnother heredoc, that\n\t\tdoesn't remove indentation\n"
-	}
-}`,
-		},
-		{
-			name: "Block with a missing reference",
-			input: `
-locals {
-	cond = test3 > 2 ? 1: 0
-}`,
-			expected: `{
-	"locals": {
-		"cond": "${test3 \u003e 2 ? 1: 0}"
-	}
-}`,
-		},
-		{
-			name: "Block with functions to simplify",
-			input: `locals {
-		a = split("-", "xyx-abc-def")
-		x = 1 + 2
-		y = pow(2,3)
-		t = "x=${4+abs(2-3)*parseint("02",16)}"
-		j = jsonencode({
-			a = "a"
-			b = 5
-		})
-		with_vars = x + 1
-	}`,
-			expected: `{
-	"locals": {
-		"a": [
-			"xyx",
-			"abc",
-			"def"
-		],
-		"j": "{\"a\":\"a\",\"b\":5}",
-		"t": "x=6",
-		"with_vars": "${x + 1}",
-		"x": 3,
-		"y": 8
-	}
-}`,
-		},
-		{
-			name: "Block with nested attributes",
-			input: `
-locals {
-	other = {
-		3 = 1
-		"a.b.c[\"hi\"][3].*" = 3
-		a.b.c = "True"
-	}
-}`,
-			expected: `{
-	"locals": {
-		"other": {
-			"3": 1,
-			"a.b.c": "True",
-			"a.b.c[\"hi\"][3].*": 3
-		}
-	}
-}`,
-		},
-		{
-			name: "Local block referencing an attribute defined on itself",
-			input: `
-locals {
-	x = -10
-	y = -x
-	z = -(1 + 4)
-}`,
-			expected: `{
-	"locals": {
-		"x": -10,
-		"y": "${-x}",
-		"z": -5
-	}
-}`,
-		},
-		{
-			name: "Mixed types of blocks (data, variable) with referenced variables",
-			input: `
-data "terraform_remote_state" "remote" {
-	backend = "s3"
-	config = {
-		profile = var.profile
-		region  = var.region
-		bucket  = "mybucket"
-		key     = "mykey"
-	}
-}
-variable "profile" {}
-variable "region" {
-	default = "us-east-1"
-}`,
-			expected: `{
-	"data": {
-		"terraform_remote_state": {
-			"remote": {
-				"backend": "s3",
-				"config": {
-					"bucket": "mybucket",
-					"key": "mykey",
-					"profile": "${var.profile}",
-					"region": "${var.region}"
-				}
-			}
-		}
-	},
-	"variable": {
-		"profile": {},
-		"region": {
-			"default": "us-east-1"
-		}
-	}
-}`,
-		},
-		{
-			name: "Block referencing a defined input variable",
-			input: `
- resource "aws_instance" "app_server" {
-   ami           = "ami-08d70e59c07c61a3a"
-   instance_type = "t2.micro"
-
-   tags = {
-    Name = var.instance_name
-   }
- }`,
-			expected: `{
-	"resource": {
-		"aws_instance": {
-			"app_server": {
-				"ami": "ami-08d70e59c07c61a3a",
-				"instance_type": "t2.micro",
-				"tags": {
-					"Name": "test"
-				}
-			}
-		}
-	}
-}`,
-			variables: ModuleVariables{
-				inputs: ValueMap{
-					"instance_name": cty.StringVal("test"),
-				},
-			},
-		},
-		{
-			name: "Block referencing a defined local variable",
-			input: `
- resource "aws_instance" "app_server" {
-   ami           = "ami-08d70e59c07c61a3a"
-   instance_type = "t2.micro"
-
-   tags = {
-    Name = local.instance_name
-   }
- }`,
-			expected: `{
-	"resource": {
-		"aws_instance": {
-			"app_server": {
-				"ami": "ami-08d70e59c07c61a3a",
-				"instance_type": "t2.micro",
-				"tags": {
-					"Name": "test"
-				}
-			}
-		}
-	}
-}`,
-			variables: ModuleVariables{
-				locals: ValueMap{
-					"instance_name": cty.StringVal("test"),
-				},
-			},
-		},
-		{
-			name: "Variable block referencing a defined local variable",
-			input: `
- 	variable "test1" {
-		type = "string"
-   		test2 = local.instance_name
- 	}`,
-			expected: `{
-	"variable": {
-		"test1": {
-			"test2": "test",
-			"type": "string"
-		}
-	}
-}`,
-			variables: ModuleVariables{
-				locals: ValueMap{
-					"instance_name": cty.StringVal("test"),
-				},
-			},
-		},
-		{
-			name: "Local block referencing a defined local variable",
-			input: `
- 	locals {
-   		test = local.instance_name
- 	}`,
-			expected: `{
-	"locals": {
-		"test": "test"
-	}
-}`,
-			variables: ModuleVariables{
-				locals: ValueMap{
-					"instance_name": cty.StringVal("test"),
-				},
-			},
-		},
-		{
-			name: "Local block referencing a variable in the attribute key",
-			input: `
-locals {
-	other = {	
-		"${local.test2}" = 4
-		3 = 1
-		"local.test1" = 89
-	}
-}`,
-			expected: `{
-	"locals": {
-		"other": {
-			"3": 1,
-			"b": 4,
-			"local.test1": 89
-		}
-	}
-}`,
-			variables: ModuleVariables{
-				locals: ValueMap{
-					"test1": cty.StringVal("a"),
-					"test2": cty.StringVal("b"),
-				},
-			},
-		},
-		{
-			name: "Block referencing an undefined variable",
-			input: `
- resource "aws_instance" "app_server" {
-   ami           = "ami-08d70e59c07c61a3a"
-   instance_type = "t2.micro"
-
-   tags = {
-    Name = var.instance_name
-   }
- }`,
-			expected: `{
-	"resource": {
-		"aws_instance": {
-			"app_server": {
-				"ami": "ami-08d70e59c07c61a3a",
-				"instance_type": "t2.micro",
-				"tags": {
-					"Name": "${var.instance_name}"
-				}
-			}
-		}
-	}
-}`,
-			variables: ModuleVariables{
-				inputs: ValueMap{
-					"wrong_name": cty.StringVal("test"),
-				},
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			actual, err := ParseHclToJson("test", tc.input, tc.variables)
-			require.Nil(t, err)
-			assert.Equal(t, tc.expected, actual)
-		})
-	}
-}
-
-func TestParseHCL2JSONFailure(t *testing.T) {
-	type test struct {
-		name     string
-		input    string
-		expected string
-	}
-	tests := []test{
-		{
-			name: "Invalid HCL",
-			input: `
-block "label_one" {
-	attribute = "value"
-`,
-			expected: "Invalid HCL provided",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := ParseHclToJson("test", tc.input, ModuleVariables{})
-			require.NotNil(t, err)
-			assert.Equal(t, tc.expected, err.Error())
-			assert.True(t, isUserError(err))
-		})
-	}
-}
-
-func TestExtractInputsSuccess(t *testing.T) {
-	type TestInput struct {
-		file File
-	}
-
-	type test struct {
-		name     string
-		input    TestInput
-		expected ValueMap
-	}
-	tests := []test{
-		{
-			name: "Simple variable block with no default",
-			input: TestInput{
-				file: File{
-					fileName: "test.tf",
-					fileContent: `
-					variable "test" {
-						type = "string"
-					}`,
-				},
-			},
-			expected: ValueMap{},
-		},
-		{
-			name: "Simple variable block with default",
-			input: TestInput{
-				file: File{
-					fileName: "test.tf",
-					fileContent: `
-					variable "test" {
-						type = "string"
-						default = "test"
-					}`,
-				},
-			},
-			expected: ValueMap{
-				"test": cty.StringVal("test"),
-			},
-		},
-		{
-			name: "Variable with null value",
-			input: TestInput{
-				file: File{
-					fileName: "test.tf",
-					fileContent: `
-					variable "test" {
-						type = "string"
-						default = null
-					}`,
-				},
-			},
-			expected: ValueMap{},
-		},
-		{
-			name: "Two variable one with null value and the other with valid value",
-			input: TestInput{
-				file: File{
-					fileName: "test.tf",
-					fileContent: `
-					variable "nullTest" {
-						type = "string"
-						default = null
-					}
-					
-					variable "test" {
-						type = "string"
-						default = "test"
-					}`,
-				},
-			},
-			expected: ValueMap{
-				"test": cty.StringVal("test"),
-			},
-		},
-		{
-			name: "Non-variable block",
-			input: TestInput{
-				file: File{
-					fileName: "test.tf",
-					fileContent: `
-					provider "google" {
-						project = "acme-app"
-						default  = "us-central1"
-					}`,
-				},
-			},
-			expected: ValueMap{},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			hclFile, _ := hclsyntax.ParseConfig([]byte(tc.input.file.fileContent), tc.input.file.fileName, hcl.Pos{Line: 1, Column: 1})
-			tc.input.file.hclFile = hclFile
-			actual, err := extractInputVariables(tc.input.file)
-			require.Nil(t, err)
-			assert.Equal(t, tc.expected, actual)
-		})
-	}
-}
 
 func TestParseModuleSuccess(t *testing.T) {
 	fileContent := `
@@ -953,13 +324,6 @@ variable "dummy" {
 					dummy = "Dummy Value"
 				}`,
 			},
-			parseErr: &CustomError{
-				message: "Internal error",
-				errors: []error{
-					errors.New("Test"),
-				},
-				userError: false,
-			},
 			expected: map[string]interface{}{
 				"failedFiles": map[string]interface{}{},
 				"parsedFiles": map[string]interface{}{
@@ -995,13 +359,6 @@ variable "dummy" {
 					cidr_blocks = local.dummy
 				}`,
 			},
-			parseErr: &CustomError{
-				message: "Internal error",
-				errors: []error{
-					errors.New("Test"),
-				},
-				userError: false,
-			},
 			expected: map[string]interface{}{
 				"failedFiles": map[string]interface{}{},
 				"parsedFiles": map[string]interface{}{"test.tf": `{
@@ -1035,13 +392,6 @@ variable "dummy" {
 				locals {
 					dummy = max(1+1, 999)
 				}`,
-			},
-			parseErr: &CustomError{
-				message: "Internal error",
-				errors: []error{
-					errors.New("Test"),
-				},
-				userError: false,
 			},
 			expected: map[string]interface{}{
 				"failedFiles": map[string]interface{}{},
@@ -1083,13 +433,6 @@ variable "dummy" {
 					type   = "string"
 				}`,
 			},
-			parseErr: &CustomError{
-				message: "Internal error",
-				errors: []error{
-					errors.New("Test"),
-				},
-				userError: false,
-			},
 			expected: map[string]interface{}{
 				"failedFiles": map[string]interface{}{},
 				"parsedFiles": map[string]interface{}{"test.tf": `{
@@ -1115,6 +458,212 @@ variable "dummy" {
 				"debugLogs": map[string]interface{}{},
 			},
 		},
+		{
+			name: "Correctly dereferencing local variable that references other local variables",
+			files: map[string]interface{}{
+				"test1.tf": `
+resource "aws_security_group" "allow_ssh" {
+	name        = "allow_ssh"
+	description = "Allow SSH inbound from anywhere"
+	cidr_blocks = local.d9
+}
+
+locals {
+	d8 = local.d7 + 1
+	d6 = local.d5 + 1
+	d4 = local.d3 + 1
+	d2 = local.d1 + 1
+}
+
+variable "dummy" {
+	default = 1
+	type   = number
+}`,
+				"test2.tf": `
+locals {
+	d9 = local.d8 + 1
+	d7 = local.d6 + 1
+	d5 = local.d4 + 1
+	d3 = local.d2 + 1
+	d1 = var.dummy
+}`,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{
+					"test1.tf": `{
+	"locals": {
+		"d2": 2,
+		"d4": 4,
+		"d6": 6,
+		"d8": 8
+	},
+	"resource": {
+		"aws_security_group": {
+			"allow_ssh": {
+				"cidr_blocks": 9,
+				"description": "Allow SSH inbound from anywhere",
+				"name": "allow_ssh"
+			}
+		}
+	},
+	"variable": {
+		"dummy": {
+			"default": 1,
+			"type": "${number}"
+		}
+	}
+}`,
+					"test2.tf": `{
+	"locals": {
+		"d1": 1,
+		"d3": 3,
+		"d5": 5,
+		"d7": 7,
+		"d9": 9
+	}
+}`},
+				"debugLogs": map[string]interface{}{},
+			},
+		},
+		{
+			name: "Correctly dereferencing local variable that references other local variables in a function",
+			files: map[string]interface{}{
+				"test1.tf": `
+resource "aws_security_group" "allow_ssh" {
+	name        = "allow_ssh"
+	description = "Allow SSH inbound from anywhere"
+	cidr_blocks = local.d3
+}
+
+locals {
+	d3 = local.d2 > local.d1 ? (local.d2 - local.d1) : (local.d1 - local.d2)
+	d2 = 2
+	d1 = 1
+}`},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{
+					"test1.tf": `{
+	"locals": {
+		"d1": 1,
+		"d2": 2,
+		"d3": 1
+	},
+	"resource": {
+		"aws_security_group": {
+			"allow_ssh": {
+				"cidr_blocks": 1,
+				"description": "Allow SSH inbound from anywhere",
+				"name": "allow_ssh"
+			}
+		}
+	}
+}`},
+				"debugLogs": map[string]interface{}{},
+			},
+		},
+		{
+			name: "Correctly stopping to dereference local variable that references too many other local variables",
+			files: map[string]interface{}{
+				"test1.tf": `
+resource "aws_security_group" "allow_ssh" {
+	name        = "allow_ssh"
+	description = "Allow SSH inbound from anywhere"
+	cidr_blocks = local.d34
+}
+
+locals {
+	d34 = local.d33 + 1
+	d33 = local.d32 + 1
+	d32 = local.d31 + 1
+	d31 = local.d30 + 1
+	d30 = local.d29 + 1
+	d29 = local.d28 + 1
+	d28 = local.d27 + 1
+	d27 = local.d26 + 1
+	d26 = local.d25 + 1
+	d25 = local.d24 + 1
+	d24 = local.d23 + 1
+	d23 = local.d22 + 1
+	d22 = local.d21 + 1
+	d21 = local.d20 + 1
+	d20 = local.d19 + 1
+	d19 = local.d18 + 1
+	d18 = local.d17 + 1
+	d17 = local.d16 + 1
+	d16 = local.d15 + 1
+	d15 = local.d14 + 1
+	d14 = local.d13 + 1
+	d13 = local.d12 + 1
+	d12 = local.d11 + 1
+	d11 = local.d10 + 1
+	d10 = local.d9 + 1
+	d9 = local.d8 + 1
+	d8 = local.d7 + 1
+	d7 = local.d6 + 1
+	d6 = local.d5 + 1
+	d5 = local.d4 + 1
+	d4 = local.d3 + 1
+	d3 = local.d2 + 1
+	d2 = local.d1 + 1
+	d1 = 1
+}`,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{
+					"test1.tf": `{
+	"locals": {
+		"d1": 1,
+		"d10": 10,
+		"d11": 11,
+		"d12": 12,
+		"d13": 13,
+		"d14": 14,
+		"d15": 15,
+		"d16": 16,
+		"d17": 17,
+		"d18": 18,
+		"d19": 19,
+		"d2": 2,
+		"d20": 20,
+		"d21": 21,
+		"d22": 22,
+		"d23": 23,
+		"d24": 24,
+		"d25": 25,
+		"d26": 26,
+		"d27": 27,
+		"d28": 28,
+		"d29": 29,
+		"d3": 3,
+		"d30": 30,
+		"d31": 31,
+		"d32": 32,
+		"d33": 33,
+		"d34": "${local.d33 + 1}",
+		"d4": 4,
+		"d5": 5,
+		"d6": 6,
+		"d7": 7,
+		"d8": 8,
+		"d9": 9
+	},
+	"resource": {
+		"aws_security_group": {
+			"allow_ssh": {
+				"cidr_blocks": "${local.d34}",
+				"description": "Allow SSH inbound from anywhere",
+				"name": "allow_ssh"
+			}
+		}
+	}
+}`,
+				},
+				"debugLogs": map[string]interface{}{},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -1132,15 +681,15 @@ variable "dummy" {
 				}
 			}
 			if tc.extractErr != nil {
-				oldExtractInputVariables := extractInputVariables
+				oldExtractVariables := extractVariables
 				defer func() {
-					extractInputVariables = oldExtractInputVariables
+					extractVariables = oldExtractVariables
 				}()
-				extractInputVariables = func(file File) (ValueMap, error) {
+				extractVariables = func(file File) (ValueMap, ExpressionMap, error) {
 					if file.fileName == "fail.tf" {
-						return nil, tc.extractErr
+						return nil, nil, tc.extractErr
 					}
-					return oldExtractInputVariables(file)
+					return oldExtractVariables(file)
 				}
 			}
 			actual := ParseModule(tc.files)

@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"reflect"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -9,14 +10,35 @@ import (
 
 type ValueMap map[string]cty.Value
 
+type ExpressionMap map[string]hcl.Expression
+
 type ModuleVariables struct {
 	inputs ValueMap
 	locals ValueMap
 }
 
-type ParserVariables map[string]ValueMap
-
 type InputVariablesByFile map[string]ValueMap
+
+// ExtractVariables extracts the input variables and local values from the provided file
+func ExtractVariables(file File) (ValueMap, ExpressionMap, error) {
+	inputsMap := ValueMap{}
+	localsMap := ExpressionMap{}
+	var hclDiags hcl.Diagnostics
+
+	if isValidInputVariablesFile(file.fileName) {
+		var inputHclDiags hcl.Diagnostics
+		inputsMap, hclDiags = extractInputVariablesFromFile(file)
+		hclDiags = append(hclDiags, inputHclDiags...)
+	}
+
+	if isValidTerraformFile(file.fileName) {
+		var localsHclDiags hcl.Diagnostics
+		localsMap, localsHclDiags = extractLocalsFromFile(file)
+		hclDiags = append(hclDiags, localsHclDiags...)
+	}
+
+	return inputsMap, localsMap, hclDiags
+}
 
 func extractInputVariablesFromFile(file File) (ValueMap, hcl.Diagnostics) {
 	var inputVariables ValueMap
@@ -34,32 +56,22 @@ func extractInputVariablesFromFile(file File) (ValueMap, hcl.Diagnostics) {
 	return inputVariables, hclDiags
 }
 
-func extractLocalsFromFile(file File, inputsMap ValueMap) (ValueMap, hcl.Diagnostics) {
-	var localsMap = ValueMap{}
-	var hclDiags hcl.Diagnostics
+func extractLocalsFromFile(file File) (ExpressionMap, hcl.Diagnostics) {
+	localExprsMap := ExpressionMap{}
 
 	bodyContent, _, hclDiags := file.hclFile.Body.PartialContent(tfFileLocalSchema)
 	if hclDiags.HasErrors() {
-		return localsMap, hclDiags
+		return localExprsMap, hclDiags
 	}
 
 	for _, block := range bodyContent.Blocks {
 		attrs, _ := block.Body.JustAttributes()
 		for localName, attr := range attrs {
-			localVal, diags := attr.Expr.Value(&hcl.EvalContext{
-				Functions: terraformFunctions,
-				Variables: NewParserVariables(ModuleVariables{
-					inputs: inputsMap,
-				}),
-			})
-			if diags.HasErrors() {
-				continue
-			}
-			localsMap[localName] = localVal
+			localExprsMap[localName] = attr.Expr
 		}
 	}
 
-	return localsMap, hclDiags
+	return localExprsMap, hclDiags
 }
 
 // Logic inspired from https://github.com/hashicorp/terraform/blob/f266d1ee82d1fa4d882c146cc131fec4bef753cf/internal/configs/named_values.go#L113
@@ -122,4 +134,49 @@ func mergeInputVariables(inputVariablesByFile InputVariablesByFile) ValueMap {
 	}
 
 	return combinedInputVariables
+}
+
+var maxLocalsDerefIterations = 32
+
+func dereferenceLocals(localExprsMap ExpressionMap, inputs ValueMap) ValueMap {
+	currLocalVals := ValueMap{}
+	nextLocalVals := ValueMap{}
+
+	for i := 0; i < maxLocalsDerefIterations; i++ {
+		for localName, localExpr := range localExprsMap {
+			newLocalVal, hclDiags := localExpr.Value(&hcl.EvalContext{
+				Variables: createValueMap(ModuleVariables{
+					inputs: inputs,
+					locals: currLocalVals,
+				}),
+				Functions: terraformFunctions,
+			})
+
+			// the local cannot be dereferenced so move onto the next one
+			if !newLocalVal.IsKnown() || hclDiags.HasErrors() {
+				continue
+			}
+
+			// a local has been dereferenced so store it in the
+			nextLocalVals[localName] = newLocalVal
+		}
+
+		// stop if the local values haven't changed between dereferencing loops
+		if reflect.DeepEqual(currLocalVals, nextLocalVals) {
+			break
+		}
+
+		for localName, localVal := range nextLocalVals {
+			currLocalVals[localName] = localVal
+		}
+	}
+
+	return nextLocalVals
+}
+
+func createValueMap(variables ModuleVariables) ValueMap {
+	return ValueMap{
+		"var":   cty.ObjectVal(variables.inputs),
+		"local": cty.ObjectVal(variables.locals),
+	}
 }

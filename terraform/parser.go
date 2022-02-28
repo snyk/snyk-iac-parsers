@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -32,23 +33,36 @@ type NewParserParams struct {
 
 type JSON = map[string]interface{}
 
-func NewParserVariables(variables ModuleVariables) ValueMap {
-	return ValueMap{
-		"var":   cty.ObjectVal(variables.inputs),
-		"local": cty.ObjectVal(variables.locals),
-	}
-}
-
-func NewParser(params NewParserParams) Parser {
+func newParser(params NewParserParams) Parser {
 	return Parser{
 		bytes:     params.bytes,
-		variables: NewParserVariables(params.variables),
+		variables: createValueMap(params.variables),
 		options:   params.options,
 	}
 }
 
+// ParseHclToJson parses a provided HCL file to JSON and dereferences any known variables using the provided variables
+func ParseHclToJson(fileName string, fileContent string, variables ModuleVariables) (string, error) {
+	file, diagnostics := hclsyntax.ParseConfig([]byte(fileContent), fileName, hcl.Pos{Line: 1, Column: 1})
+	if diagnostics.HasErrors() {
+		return "", createInvalidHCLError(diagnostics.Errs())
+	}
+
+	parsedFile, err := parseFile(file, variables)
+	if err != nil {
+		return "", createInternalHCLParsingError([]error{err})
+	}
+
+	jsonBytes, err := json.MarshalIndent(parsedFile, "", "\t")
+	if err != nil {
+		return "", createInternalJSONParsingError([]error{err})
+	}
+
+	return string(jsonBytes), nil
+}
+
 func parseFile(file *hcl.File, variables ModuleVariables) (JSON, error) {
-	parser := NewParser(NewParserParams{
+	parser := newParser(NewParserParams{
 		bytes:     file.Bytes,
 		variables: variables,
 		options: Options{
