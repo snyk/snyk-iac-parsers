@@ -7,72 +7,43 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
 
+type File struct {
+	fileName    string
+	fileContent string
+	hclFile     *hcl.File
+}
+
+type ParseModuleResult struct {
+	parsedFiles map[string]interface{}
+	failedFiles map[string]interface{} // will contain files alongside user errors
+	debugLogs   map[string]interface{}
+}
+
 // ParseModule iterated through all the provided files in a module (.tf, terraform.tfvars, and *.auto.tfvars files)
 // It extracts the variables from each one, merges them, and dereferences them one by one
-func ParseModule(files map[string]interface{}) map[string]interface{} {
-	failedFiles := make(map[string]interface{}) // will contain files alongside user errors
-	parsedFiles := make(map[string]interface{})
-	debugLogs := make(map[string]interface{})
-
-	inputVariablesByFile := InputVariablesByFile{}
-	for fileName, fileContentInterface := range files {
-		if isValidInputVariablesFile(fileName) {
-			// need to use interface{} for gopherjs, so cast it back to string
-			fileContent, ok := fileContentInterface.(string)
-			if !ok {
-				continue
-			}
-			inputVariablesMap, err := extractInputVariables(fileName, fileContent)
-			if err != nil {
-				// skip non-user errors
-				if isUserError(err) {
-					debugLogs[fileName] = GenerateDebugLogs(err)
-					failedFiles[fileName] = err.Error()
-				}
-				continue
-			}
-			inputVariablesByFile[fileName] = inputVariablesMap
-		}
+func ParseModule(rawFiles map[string]interface{}) map[string]interface{} {
+	parseRes := &ParseModuleResult{
+		failedFiles: make(map[string]interface{}),
+		parsedFiles: make(map[string]interface{}),
+		debugLogs:   make(map[string]interface{}),
 	}
 
-	// merge inputs so they can be used across multiple files
-	inputVariablesMap := mergeInputVariables(inputVariablesByFile)
+	files := processFiles(rawFiles, parseRes)
 
-	vars := ModuleVariables{
-		inputs: inputVariablesMap,
-	}
+	vars := extractModuleVariables(files, parseRes)
 
-	for fileName, fileContent := range files {
-		// failedFiles contains user errors so if the file failed at extract time, we don't try to parse it
-		if isValidTerraformFile(fileName) && failedFiles[fileName] == nil {
-			parsedJson, err := parseHclToJson(fileName, fileContent.(string), vars)
-			if err != nil {
-				// skip non-user errors
-				if isUserError(err) {
-					debugLogs[fileName] = GenerateDebugLogs(err)
-					failedFiles[fileName] = err.Error()
-				}
-				continue
-			}
-			parsedFiles[fileName] = parsedJson
-		}
-	}
+	parseModuleFiles(files, vars, parseRes)
 
-	return map[string]interface{}{
-		"parsedFiles": parsedFiles,
-		"failedFiles": failedFiles,
-		"debugLogs":   debugLogs,
+	return JSON{
+		"parsedFiles": parseRes.parsedFiles,
+		"failedFiles": parseRes.failedFiles,
+		"debugLogs":   parseRes.debugLogs,
 	}
 }
 
 // extractInputVariables extracts the input variables values from the provided file
-var extractInputVariables = func(fileName string, fileContent string) (ValueMap, error) {
-	file, diagnostics := hclsyntax.ParseConfig([]byte(fileContent), fileName, hcl.Pos{Line: 1, Column: 1})
-	if diagnostics.HasErrors() {
-		return ValueMap{}, createInvalidHCLError(diagnostics.Errs())
-	}
-
-	fileInputVariablesMap, diagnostics := extractInputVariablesFromFile(fileName, file)
+var extractInputVariables = func(file File) (ValueMap, error) {
+	fileInputVariablesMap, diagnostics := extractInputVariablesFromFile(file)
 	if diagnostics.HasErrors() {
 		return ValueMap{}, createInvalidHCLError(diagnostics.Errs())
 	}
@@ -98,6 +69,77 @@ func ParseHclToJson(fileName string, fileContent string, variables ModuleVariabl
 	}
 
 	return string(jsonBytes), nil
+}
+
+func processFiles(rawFiles map[string]interface{}, parseRes *ParseModuleResult) map[string]File {
+	files := make(map[string]File)
+
+	for fileName, fileContentInterface := range rawFiles {
+		fileContent, ok := fileContentInterface.(string)
+		if !ok {
+			continue
+		}
+
+		hclFile, hclDiags := hclsyntax.ParseConfig([]byte(fileContent), fileName, hcl.Pos{Line: 1, Column: 1})
+		if hclDiags.HasErrors() {
+			err := createInvalidHCLError(hclDiags.Errs())
+			parseRes.debugLogs[fileName] = GenerateDebugLogs(err)
+			parseRes.failedFiles[fileName] = err.Error()
+			continue
+		}
+
+		files[fileName] = File{
+			fileName:    fileName,
+			fileContent: fileContent,
+			hclFile:     hclFile,
+		}
+	}
+
+	return files
+}
+
+func parseModuleFiles(files map[string]File, vars ModuleVariables, parseRes *ParseModuleResult) {
+	for fileName, file := range files {
+		// failedFiles contains user errors so if the file failed at extract time, we don't try to parse it
+		if _, ok := parseRes.failedFiles[fileName]; isValidTerraformFile(fileName) && !ok {
+			parsedJson, err := parseHclToJson(fileName, file.fileContent, vars)
+			if err != nil {
+				// skip non-user errors
+				if isUserError(err) {
+					parseRes.debugLogs[fileName] = GenerateDebugLogs(err)
+					parseRes.failedFiles[fileName] = err.Error()
+				}
+				continue
+			}
+			parseRes.parsedFiles[fileName] = parsedJson
+		}
+	}
+}
+
+func extractModuleVariables(files map[string]File, parseRes *ParseModuleResult) ModuleVariables {
+	inputsByFile := InputVariablesByFile{}
+
+	for fileName, file := range files {
+		if isValidInputVariablesFile(fileName) {
+			inputsMap, err := extractInputVariables(file)
+			if err != nil {
+				// skip non-user errors
+				if isUserError(err) {
+					parseRes.debugLogs[fileName] = GenerateDebugLogs(err)
+					parseRes.failedFiles[fileName] = err.Error()
+				}
+				continue
+			}
+			inputsByFile[fileName] = inputsMap
+		}
+	}
+
+	// merge inputs so they can be used across multiple files
+	inputsMap := mergeInputVariables(inputsByFile)
+
+	return ModuleVariables{
+		inputs: inputsMap,
+	}
 }
 
 var parseHclToJson = ParseHclToJson // used for mocking in the tests

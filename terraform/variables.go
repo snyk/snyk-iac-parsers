@@ -18,13 +18,13 @@ type ParserVariables map[string]ValueMap
 
 type InputVariablesByFile map[string]ValueMap
 
-func extractInputVariablesFromFile(fileName string, file *hcl.File) (ValueMap, hcl.Diagnostics) {
+func extractInputVariablesFromFile(file File) (ValueMap, hcl.Diagnostics) {
 	var inputVariables ValueMap
 	var hclDiags hcl.Diagnostics
-	if strings.HasSuffix(fileName, TF) {
-		inputVariables, hclDiags = extractInputVariablesFromTfFile(file)
-	} else if strings.HasSuffix(fileName, TFVARS) {
-		inputVariables, hclDiags = extractInputVariablesFromTfvarsFile(file)
+	if strings.HasSuffix(file.fileName, TF) {
+		inputVariables, hclDiags = extractInputVariablesFromTfFile(file.hclFile)
+	} else if strings.HasSuffix(file.fileName, TFVARS) {
+		inputVariables, hclDiags = extractInputVariablesFromTfvarsFile(file.hclFile)
 	}
 
 	if hclDiags.HasErrors() {

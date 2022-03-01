@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -537,8 +539,7 @@ block "label_one" {
 
 func TestExtractInputsSuccess(t *testing.T) {
 	type TestInput struct {
-		fileName    string
-		fileContent string
+		file File
 	}
 
 	type test struct {
@@ -550,23 +551,27 @@ func TestExtractInputsSuccess(t *testing.T) {
 		{
 			name: "Simple variable block with no default",
 			input: TestInput{
-				fileName: "test.tf",
-				fileContent: `
-				variable "test" {
-					type = "string"
-				}`,
+				file: File{
+					fileName: "test.tf",
+					fileContent: `
+					variable "test" {
+						type = "string"
+					}`,
+				},
 			},
 			expected: ValueMap{},
 		},
 		{
 			name: "Simple variable block with default",
 			input: TestInput{
-				fileName: "test.tf",
-				fileContent: `
-				variable "test" {
-					type = "string"
-					default = "test"
-				}`,
+				file: File{
+					fileName: "test.tf",
+					fileContent: `
+					variable "test" {
+						type = "string"
+						default = "test"
+					}`,
+				},
 			},
 			expected: ValueMap{
 				"test": cty.StringVal("test"),
@@ -575,29 +580,33 @@ func TestExtractInputsSuccess(t *testing.T) {
 		{
 			name: "Variable with null value",
 			input: TestInput{
-				fileName: "test.tf",
-				fileContent: `
-				variable "test" {
-					type = "string"
-					default = null
-				}`,
+				file: File{
+					fileName: "test.tf",
+					fileContent: `
+					variable "test" {
+						type = "string"
+						default = null
+					}`,
+				},
 			},
 			expected: ValueMap{},
 		},
 		{
 			name: "Two variable one with null value and the other with valid value",
 			input: TestInput{
-				fileName: "test.tf",
-				fileContent: `
-				variable "nullTest" {
-					type = "string"
-					default = null
-				}
-				
-				variable "test" {
-					type = "string"
-					default = "test"
-				}`,
+				file: File{
+					fileName: "test.tf",
+					fileContent: `
+					variable "nullTest" {
+						type = "string"
+						default = null
+					}
+					
+					variable "test" {
+						type = "string"
+						default = "test"
+					}`,
+				},
 			},
 			expected: ValueMap{
 				"test": cty.StringVal("test"),
@@ -606,12 +615,14 @@ func TestExtractInputsSuccess(t *testing.T) {
 		{
 			name: "Non-variable block",
 			input: TestInput{
-				fileName: "test.tf",
-				fileContent: `
-				provider "google" {
-					project = "acme-app"
-					default  = "us-central1"
-				}`,
+				file: File{
+					fileName: "test.tf",
+					fileContent: `
+					provider "google" {
+						project = "acme-app"
+						default  = "us-central1"
+					}`,
+				},
 			},
 			expected: ValueMap{},
 		},
@@ -619,7 +630,9 @@ func TestExtractInputsSuccess(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual, err := extractInputVariables(tc.input.fileName, tc.input.fileContent)
+			hclFile, _ := hclsyntax.ParseConfig([]byte(tc.input.file.fileContent), tc.input.file.fileName, hcl.Pos{Line: 1, Column: 1})
+			tc.input.file.hclFile = hclFile
+			actual, err := extractInputVariables(tc.input.file)
 			require.Nil(t, err)
 			assert.Equal(t, tc.expected, actual)
 		})
@@ -947,11 +960,11 @@ variable "dummy" {
 				defer func() {
 					extractInputVariables = oldExtractInputVariables
 				}()
-				extractInputVariables = func(fileName string, fileContent string) (ValueMap, error) {
-					if fileName == "fail.tf" {
+				extractInputVariables = func(file File) (ValueMap, error) {
+					if file.fileName == "fail.tf" {
 						return nil, tc.extractErr
 					}
-					return oldExtractInputVariables(fileName, fileContent)
+					return oldExtractInputVariables(file)
 				}
 			}
 			actual := ParseModule(tc.files)
