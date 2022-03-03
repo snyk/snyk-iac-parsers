@@ -16,7 +16,7 @@ func TestParseHCL2JSONSuccess(t *testing.T) {
 	type test struct {
 		name      string
 		input     string
-		variables VariableMap
+		variables ModuleVariables
 		expected  string
 	}
 
@@ -367,10 +367,10 @@ variable "region" {
 		}
 	}
 }`,
-			variables: VariableMap{
-				"var": cty.ObjectVal(VariableMap{
+			variables: ModuleVariables{
+				inputs: ValueMap{
 					"instance_name": cty.StringVal("test"),
-				}),
+				},
 			},
 		},
 		{
@@ -397,10 +397,10 @@ variable "region" {
 		}
 	}
 }`,
-			variables: VariableMap{
-				"local": cty.ObjectVal(VariableMap{
+			variables: ModuleVariables{
+				locals: ValueMap{
 					"instance_name": cty.StringVal("test"),
-				}),
+				},
 			},
 		},
 		{
@@ -418,10 +418,10 @@ variable "region" {
 		}
 	}
 }`,
-			variables: VariableMap{
-				"local": cty.ObjectVal(VariableMap{
+			variables: ModuleVariables{
+				locals: ValueMap{
 					"instance_name": cty.StringVal("test"),
-				}),
+				},
 			},
 		},
 		{
@@ -435,10 +435,10 @@ variable "region" {
 		"test": "test"
 	}
 }`,
-			variables: VariableMap{
-				"local": cty.ObjectVal(VariableMap{
+			variables: ModuleVariables{
+				locals: ValueMap{
 					"instance_name": cty.StringVal("test"),
-				}),
+				},
 			},
 		},
 		{
@@ -460,11 +460,11 @@ locals {
 		}
 	}
 }`,
-			variables: VariableMap{
-				"local": cty.ObjectVal(VariableMap{
+			variables: ModuleVariables{
+				locals: ValueMap{
 					"test1": cty.StringVal("a"),
 					"test2": cty.StringVal("b"),
-				}),
+				},
 			},
 		},
 		{
@@ -491,10 +491,10 @@ locals {
 		}
 	}
 }`,
-			variables: VariableMap{
-				"var": cty.ObjectVal(VariableMap{
+			variables: ModuleVariables{
+				inputs: ValueMap{
 					"wrong_name": cty.StringVal("test"),
-				}),
+				},
 			},
 		},
 	}
@@ -527,7 +527,7 @@ block "label_one" {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := ParseHclToJson("test", tc.input, nil)
+			_, err := ParseHclToJson("test", tc.input, ModuleVariables{})
 			require.NotNil(t, err)
 			assert.Equal(t, tc.expected, err.Error())
 			assert.True(t, isUserError(err))
@@ -535,7 +535,7 @@ block "label_one" {
 	}
 }
 
-func TestExtractVariablesSuccess(t *testing.T) {
+func TestExtractInputsSuccess(t *testing.T) {
 	type TestInput struct {
 		fileName    string
 		fileContent string
@@ -544,7 +544,7 @@ func TestExtractVariablesSuccess(t *testing.T) {
 	type test struct {
 		name     string
 		input    TestInput
-		expected VariableMap
+		expected ValueMap
 	}
 	tests := []test{
 		{
@@ -556,12 +556,7 @@ func TestExtractVariablesSuccess(t *testing.T) {
 					type = "string"
 				}`,
 			},
-			expected: VariableMap{
-				"var": cty.ObjectVal(VariableMap{}),
-				"local": cty.ObjectVal(VariableMap{
-					"dummy": cty.StringVal("dummy"),
-				}),
-			},
+			expected: ValueMap{},
 		},
 		{
 			name: "Simple variable block with default",
@@ -573,13 +568,8 @@ func TestExtractVariablesSuccess(t *testing.T) {
 					default = "test"
 				}`,
 			},
-			expected: VariableMap{
-				"var": cty.ObjectVal(VariableMap{
-					"test": cty.StringVal("test"),
-				}),
-				"local": cty.ObjectVal(VariableMap{
-					"dummy": cty.StringVal("dummy"),
-				}),
+			expected: ValueMap{
+				"test": cty.StringVal("test"),
 			},
 		},
 		{
@@ -592,12 +582,7 @@ func TestExtractVariablesSuccess(t *testing.T) {
 					default = null
 				}`,
 			},
-			expected: VariableMap{
-				"var": cty.ObjectVal(VariableMap{}),
-				"local": cty.ObjectVal(VariableMap{
-					"dummy": cty.StringVal("dummy"),
-				}),
-			},
+			expected: ValueMap{},
 		},
 		{
 			name: "Two variable one with null value and the other with valid value",
@@ -614,13 +599,8 @@ func TestExtractVariablesSuccess(t *testing.T) {
 					default = "test"
 				}`,
 			},
-			expected: VariableMap{
-				"var": cty.ObjectVal(VariableMap{
-					"test": cty.StringVal("test"),
-				}),
-				"local": cty.ObjectVal(VariableMap{
-					"dummy": cty.StringVal("dummy"),
-				}),
+			expected: ValueMap{
+				"test": cty.StringVal("test"),
 			},
 		},
 		{
@@ -633,18 +613,13 @@ func TestExtractVariablesSuccess(t *testing.T) {
 					default  = "us-central1"
 				}`,
 			},
-			expected: VariableMap{
-				"var": cty.ObjectVal(VariableMap{}),
-				"local": cty.ObjectVal(VariableMap{
-					"dummy": cty.StringVal("dummy"),
-				}),
-			},
+			expected: ValueMap{},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual, err := extractVariables(tc.input.fileName, tc.input.fileContent)
+			actual, err := extractInputVariables(tc.input.fileName, tc.input.fileContent)
 			require.Nil(t, err)
 			assert.Equal(t, tc.expected, actual)
 		})
@@ -960,7 +935,7 @@ variable "dummy" {
 				defer func() {
 					parseHclToJson = oldParseHclToJson
 				}()
-				parseHclToJson = func(fileName string, fileContent string, variableMap VariableMap) (string, error) {
+				parseHclToJson = func(fileName string, fileContent string, variableMap ModuleVariables) (string, error) {
 					if fileName == "fail.tf" {
 						return "", tc.parseErr
 					}
@@ -968,15 +943,15 @@ variable "dummy" {
 				}
 			}
 			if tc.extractErr != nil {
-				oldExtractVariables := extractVariables
+				oldExtractInputVariables := extractInputVariables
 				defer func() {
-					extractVariables = oldExtractVariables
+					extractInputVariables = oldExtractInputVariables
 				}()
-				extractVariables = func(fileName string, fileContent string) (VariableMap, error) {
+				extractInputVariables = func(fileName string, fileContent string) (ValueMap, error) {
 					if fileName == "fail.tf" {
 						return nil, tc.extractErr
 					}
-					return oldExtractVariables(fileName, fileContent)
+					return oldExtractInputVariables(fileName, fileContent)
 				}
 			}
 			actual := ParseModule(tc.files)

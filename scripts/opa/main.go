@@ -35,7 +35,7 @@ func runOpa() {
 				return nil, err
 			}
 
-			input, err := terraform.ParseHclToJson(filePath, string(content), terraform.VariableMap{})
+			input, err := terraform.ParseHclToJson(filePath, string(content), terraform.ModuleVariables{})
 			if err != nil {
 				return nil, err
 			}
