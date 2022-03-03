@@ -26,12 +26,12 @@ func TestMergeVariablesFromTerraformFiles(t *testing.T) {
 		"var2": cty.StringVal("val2-duplicate"),
 		"var3": cty.StringVal("val3"),
 	}
-	actual := mergeInputs(input)
+	actual := mergeInputVariables(input)
 	assert.Equal(t, expected, actual)
 }
 
 func TestMergeVariablesOverridesWithTerraformTfvars(t *testing.T) {
-	input := InputsByFile{
+	input := InputVariablesByFile{
 		"test1.tf": ValueMap{
 			"var": cty.StringVal("val1"),
 		},
@@ -42,12 +42,12 @@ func TestMergeVariablesOverridesWithTerraformTfvars(t *testing.T) {
 	expected := ValueMap{
 		"var": cty.StringVal("val2"),
 	}
-	actual := mergeInputs(input)
+	actual := mergeInputVariables(input)
 	assert.Equal(t, expected, actual)
 }
 
 func TestMergeVariablesOverridesWithAnyAutoTfvars(t *testing.T) {
-	input := InputsByFile{
+	input := InputVariablesByFile{
 		"test1.tf": ValueMap{
 			"var": cty.StringVal("val1"),
 		},
@@ -61,12 +61,12 @@ func TestMergeVariablesOverridesWithAnyAutoTfvars(t *testing.T) {
 	expected := ValueMap{
 		"var": cty.StringVal("val3"),
 	}
-	actual := mergeInputs(input)
+	actual := mergeInputVariables(input)
 	assert.Equal(t, expected, actual)
 }
 
 func TestMergeVariablesOverridesWithLexicalOrderAutoTfvars(t *testing.T) {
-	input := InputsByFile{
+	input := InputVariablesByFile{
 		"test1.tf": ValueMap{
 			"var": cty.StringVal("val1"),
 		},
@@ -83,6 +83,6 @@ func TestMergeVariablesOverridesWithLexicalOrderAutoTfvars(t *testing.T) {
 	expected := ValueMap{
 		"var": cty.StringVal("val3"),
 	}
-	actual := mergeInputs(input)
+	actual := mergeInputVariables(input)
 	assert.Equal(t, expected, actual)
 }

@@ -14,15 +14,15 @@ func ParseModule(files map[string]interface{}) map[string]interface{} {
 	parsedFiles := make(map[string]interface{})
 	debugLogs := make(map[string]interface{})
 
-	inputsByFile := InputsByFile{}
+	inputVariablesByFile := InputVariablesByFile{}
 	for fileName, fileContentInterface := range files {
-		if isValidInputsFile(fileName) {
+		if isValidInputVariablesFile(fileName) {
 			// need to use interface{} for gopherjs, so cast it back to string
 			fileContent, ok := fileContentInterface.(string)
 			if !ok {
 				continue
 			}
-			inputsMap, err := extractInputs(fileName, fileContent)
+			inputVariablesMap, err := extractInputVariables(fileName, fileContent)
 			if err != nil {
 				// skip non-user errors
 				if isUserError(err) {
@@ -31,15 +31,15 @@ func ParseModule(files map[string]interface{}) map[string]interface{} {
 				}
 				continue
 			}
-			inputsByFile[fileName] = inputsMap
+			inputVariablesByFile[fileName] = inputVariablesMap
 		}
 	}
 
 	// merge inputs so they can be used across multiple files
-	inputsMap := mergeInputs(inputsByFile)
+	inputVariablesMap := mergeInputVariables(inputVariablesByFile)
 
 	vars := ModuleVariables{
-		inputs: inputsMap,
+		inputs: inputVariablesMap,
 	}
 
 	for fileName, fileContent := range files {
@@ -65,19 +65,19 @@ func ParseModule(files map[string]interface{}) map[string]interface{} {
 	}
 }
 
-// extractInputs extracts the input values from the provided file
-var extractInputs = func(fileName string, fileContent string) (ValueMap, error) {
+// extractInputVariables extracts the input variables values from the provided file
+var extractInputVariables = func(fileName string, fileContent string) (ValueMap, error) {
 	file, diagnostics := hclsyntax.ParseConfig([]byte(fileContent), fileName, hcl.Pos{Line: 1, Column: 1})
 	if diagnostics.HasErrors() {
 		return ValueMap{}, createInvalidHCLError(diagnostics.Errs())
 	}
 
-	fileInputsMap, diagnostics := extractInputsFromFile(fileName, file)
+	fileInputVariablesMap, diagnostics := extractInputVariablesFromFile(fileName, file)
 	if diagnostics.HasErrors() {
 		return ValueMap{}, createInvalidHCLError(diagnostics.Errs())
 	}
 
-	return fileInputsMap, nil
+	return fileInputVariablesMap, nil
 }
 
 // ParseHclToJson parses a provided HCL file to JSON and dereferences any known variables using the provided variables

@@ -16,11 +16,11 @@ func TestIsTerraformTfvarsFile(t *testing.T) {
 }
 
 func TestIsValidVariableFile(t *testing.T) {
-	assert.True(t, isValidInputsFile(fmt.Sprintf("path%cto%cterraform.tfvars", os.PathSeparator, os.PathSeparator)))
-	assert.False(t, isValidInputsFile(fmt.Sprintf("path%cto%cterraform.tfvars.json", os.PathSeparator, os.PathSeparator)))
-	assert.True(t, isValidInputsFile(fmt.Sprintf("path%cto%ctest.tf", os.PathSeparator, os.PathSeparator)))
-	assert.True(t, isValidInputsFile(fmt.Sprintf("path%cto%ctest.auto.tfvars", os.PathSeparator, os.PathSeparator)))
-	assert.False(t, isValidInputsFile(fmt.Sprintf("path%cto%ctest.auto.tfvars.json", os.PathSeparator, os.PathSeparator)))
+	assert.True(t, isValidInputVariablesFile(fmt.Sprintf("path%cto%cterraform.tfvars", os.PathSeparator, os.PathSeparator)))
+	assert.False(t, isValidInputVariablesFile(fmt.Sprintf("path%cto%cterraform.tfvars.json", os.PathSeparator, os.PathSeparator)))
+	assert.True(t, isValidInputVariablesFile(fmt.Sprintf("path%cto%ctest.tf", os.PathSeparator, os.PathSeparator)))
+	assert.True(t, isValidInputVariablesFile(fmt.Sprintf("path%cto%ctest.auto.tfvars", os.PathSeparator, os.PathSeparator)))
+	assert.False(t, isValidInputVariablesFile(fmt.Sprintf("path%cto%ctest.auto.tfvars.json", os.PathSeparator, os.PathSeparator)))
 }
 
 func TestIsValidTerraformFile(t *testing.T) {

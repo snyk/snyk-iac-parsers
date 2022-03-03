@@ -16,31 +16,31 @@ type ModuleVariables struct {
 
 type ParserVariables map[string]ValueMap
 
-type InputsByFile map[string]ValueMap
+type InputVariablesByFile map[string]ValueMap
 
-func extractInputsFromFile(fileName string, file *hcl.File) (ValueMap, hcl.Diagnostics) {
-	var inputs ValueMap
+func extractInputVariablesFromFile(fileName string, file *hcl.File) (ValueMap, hcl.Diagnostics) {
+	var inputVariables ValueMap
 	var hclDiags hcl.Diagnostics
 	if strings.HasSuffix(fileName, TF) {
-		inputs, hclDiags = extractInputsFromTfFile(file)
+		inputVariables, hclDiags = extractInputVariablesFromTfFile(file)
 	} else if strings.HasSuffix(fileName, TFVARS) {
-		inputs, hclDiags = extractInputsFromTfvarsFile(file)
+		inputVariables, hclDiags = extractInputVariablesFromTfvarsFile(file)
 	}
 
 	if hclDiags.HasErrors() {
-		return inputs, hclDiags
+		return inputVariables, hclDiags
 	}
 
-	return inputs, hclDiags
+	return inputVariables, hclDiags
 }
 
 // Logic inspired from https://github.com/hashicorp/terraform/blob/f266d1ee82d1fa4d882c146cc131fec4bef753cf/internal/configs/named_values.go#L113
-func extractInputsFromTfFile(file *hcl.File) (ValueMap, hcl.Diagnostics) {
-	inputsMap := ValueMap{}
+func extractInputVariablesFromTfFile(file *hcl.File) (ValueMap, hcl.Diagnostics) {
+	inputVariablesMap := ValueMap{}
 
 	bodyContent, _, hclDiags := file.Body.PartialContent(tfFileVariableSchema)
 	if hclDiags.HasErrors() {
-		return inputsMap, hclDiags
+		return inputVariablesMap, hclDiags
 	}
 
 	for _, block := range bodyContent.Blocks {
@@ -54,15 +54,15 @@ func extractInputsFromTfFile(file *hcl.File) (ValueMap, hcl.Diagnostics) {
 				continue
 			}
 
-			inputsMap[name] = value
+			inputVariablesMap[name] = value
 		}
 	}
 
-	return inputsMap, hclDiags
+	return inputVariablesMap, hclDiags
 }
 
-func extractInputsFromTfvarsFile(file *hcl.File) (ValueMap, hcl.Diagnostics) {
-	inputsMap := ValueMap{}
+func extractInputVariablesFromTfvarsFile(file *hcl.File) (ValueMap, hcl.Diagnostics) {
+	inputVariablesMap := ValueMap{}
 
 	attrs, hclDiags := file.Body.JustAttributes()
 
@@ -71,27 +71,27 @@ func extractInputsFromTfvarsFile(file *hcl.File) (ValueMap, hcl.Diagnostics) {
 		if diags.HasErrors() {
 			continue
 		}
-		inputsMap[name] = value
+		inputVariablesMap[name] = value
 	}
-	return inputsMap, hclDiags
+	return inputVariablesMap, hclDiags
 }
 
-func mergeInputs(inputsByFile InputsByFile) ValueMap {
-	combinedInputs := make(ValueMap)
+func mergeInputVariables(inputVariablesByFile InputVariablesByFile) ValueMap {
+	combinedInputVariables := make(ValueMap)
 
-	fileNames := make([]string, 0, len(inputsByFile))
-	for fileName := range inputsByFile {
+	fileNames := make([]string, 0, len(inputVariablesByFile))
+	for fileName := range inputVariablesByFile {
 		fileNames = append(fileNames, fileName)
 	}
 
 	prioritisedFileNames := orderFilesByPriority(fileNames)
 
 	for _, fileName := range prioritisedFileNames {
-		inputsMap := inputsByFile[fileName]
-		for input, value := range inputsMap {
-			combinedInputs[input] = value
+		inputVariablesMap := inputVariablesByFile[fileName]
+		for input, value := range inputVariablesMap {
+			combinedInputVariables[input] = value
 		}
 	}
 
-	return combinedInputs
+	return combinedInputVariables
 }

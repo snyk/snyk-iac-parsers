@@ -619,7 +619,7 @@ func TestExtractInputsSuccess(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual, err := extractInputs(tc.input.fileName, tc.input.fileContent)
+			actual, err := extractInputVariables(tc.input.fileName, tc.input.fileContent)
 			require.Nil(t, err)
 			assert.Equal(t, tc.expected, actual)
 		})
@@ -943,15 +943,15 @@ variable "dummy" {
 				}
 			}
 			if tc.extractErr != nil {
-				oldExtractInputs := extractInputs
+				oldExtractInputVariables := extractInputVariables
 				defer func() {
-					extractInputs = oldExtractInputs
+					extractInputVariables = oldExtractInputVariables
 				}()
-				extractInputs = func(fileName string, fileContent string) (ValueMap, error) {
+				extractInputVariables = func(fileName string, fileContent string) (ValueMap, error) {
 					if fileName == "fail.tf" {
 						return nil, tc.extractErr
 					}
-					return oldExtractInputs(fileName, fileContent)
+					return oldExtractInputVariables(fileName, fileContent)
 				}
 			}
 			actual := ParseModule(tc.files)
