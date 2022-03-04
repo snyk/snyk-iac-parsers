@@ -12,11 +12,8 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
-type variableMap map[string]cty.Value
-
 type Options struct {
-	Simplify    bool
-	ContextVars variableMap
+	Simplify bool
 }
 
 func Convert(module *TerraformModule, options Options) ([]byte, error) {
@@ -42,7 +39,7 @@ func convertFiles(module *TerraformModule, options Options) (jsonObj, error) {
 		if file.isConfig {
 			body := file.File.Body.(*hclsyntax.Body)
 
-			c.convertBody(body, file.File, out, "")
+			c.convertBody(body, file.File, out, "", false, module.vars)
 		}
 	}
 
@@ -50,8 +47,7 @@ func convertFiles(module *TerraformModule, options Options) (jsonObj, error) {
 		for _, file := range m.Files {
 			if file.isConfig {
 				body := file.File.Body.(*hclsyntax.Body)
-
-				c.convertBody(body, file.File, out, fmt.Sprintf("module.%s.", moduleName))
+				c.convertBody(body, file.File, out, fmt.Sprintf("module.%s.", moduleName), true, m.vars)
 			}
 		}
 	}
@@ -74,7 +70,7 @@ func (c *converter) rangeSource(r hcl.Range, file *hcl.File) string {
 	return string(file.Bytes[r.Start.Byte:end])
 }
 
-func (c *converter) convertBody(body *hclsyntax.Body, file *hcl.File, out jsonObj, prefix string) (jsonObj, error) {
+func (c *converter) convertBody(body *hclsyntax.Body, file *hcl.File, out jsonObj, prefix string, ignoreNonResource bool, contextVars variableMap) (jsonObj, error) {
 	var err error
 	if out == nil {
 		out = make(jsonObj)
@@ -82,14 +78,18 @@ func (c *converter) convertBody(body *hclsyntax.Body, file *hcl.File, out jsonOb
 	for key, value := range body.Attributes {
 
 		//TODO should we handle count=0 case
-		out[key], err = c.convertExpression(value.Expr, file)
+		out[key], err = c.convertExpression(value.Expr, file, contextVars)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	for _, block := range body.Blocks {
-		err = c.convertBlock(block, out, file, prefix)
+		if ignoreNonResource && block.Type != "resource" {
+			continue
+		}
+
+		err = c.convertBlock(block, out, file, prefix, contextVars)
 		if err != nil {
 			return nil, err
 		}
@@ -98,10 +98,10 @@ func (c *converter) convertBody(body *hclsyntax.Body, file *hcl.File, out jsonOb
 	return out, nil
 }
 
-func (c *converter) convertBlock(block *hclsyntax.Block, out jsonObj, file *hcl.File, prefix string) error {
+func (c *converter) convertBlock(block *hclsyntax.Block, out jsonObj, file *hcl.File, prefix string, contextVars variableMap) error {
 	var key string = block.Type
 
-	value, err := c.convertBody(block.Body, file, nil, prefix)
+	value, err := c.convertBody(block.Body, file, nil, prefix, false, contextVars)
 	if err != nil {
 		return err
 	}
@@ -142,10 +142,10 @@ func (c *converter) convertBlock(block *hclsyntax.Block, out jsonObj, file *hcl.
 	return nil
 }
 
-func (c *converter) convertExpression(expr hclsyntax.Expression, file *hcl.File) (interface{}, error) {
+func (c *converter) convertExpression(expr hclsyntax.Expression, file *hcl.File, ContextVars variableMap) (interface{}, error) {
 	if c.options.Simplify {
 		context := (&evalContext).NewChild()
-		context.Variables = c.options.ContextVars
+		context.Variables = ContextVars
 		value, err := expr.Value(context)
 		if err == nil {
 			return ctyjson.SimpleJSONValue{Value: value}, nil
@@ -160,11 +160,11 @@ func (c *converter) convertExpression(expr hclsyntax.Expression, file *hcl.File)
 	case *hclsyntax.TemplateExpr:
 		return c.convertTemplate(value, file)
 	case *hclsyntax.TemplateWrapExpr:
-		return c.convertExpression(value.Wrapped, file)
+		return c.convertExpression(value.Wrapped, file, ContextVars)
 	case *hclsyntax.TupleConsExpr:
 		var list []interface{}
 		for _, ex := range value.Exprs {
-			elem, err := c.convertExpression(ex, file)
+			elem, err := c.convertExpression(ex, file, ContextVars)
 			if err != nil {
 				return nil, err
 			}
@@ -178,7 +178,7 @@ func (c *converter) convertExpression(expr hclsyntax.Expression, file *hcl.File)
 			if err != nil {
 				return nil, err
 			}
-			m[key], err = c.convertExpression(item.ValueExpr, file)
+			m[key], err = c.convertExpression(item.ValueExpr, file, ContextVars)
 			if err != nil {
 				return nil, err
 			}

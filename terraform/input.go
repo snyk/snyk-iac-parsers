@@ -136,7 +136,7 @@ func SourceRangeFromHCL(hclRange hcl.Range) SourceRange {
 	}
 }
 
-func ParseVariables(module *TerraformModule, env []string, rawFlags []rawFlag) (map[string]*InputValue, hcl.Diagnostics) {
+func ParseInputVariables(module *TerraformModule, env []string, rawFlags []rawFlag) (map[string]*InputValue, hcl.Diagnostics) {
 	ret := map[string]*InputValue{}
 
 	variables, diags := ProcessVariables(module, env, rawFlags)

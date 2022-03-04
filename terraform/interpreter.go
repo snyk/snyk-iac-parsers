@@ -43,15 +43,35 @@ type rawFlag struct {
 	Name  string
 	Value string
 }
+type variableMap map[string]cty.Value
 
 func (i *Interpreter) ModuleAsJson(dir string, env []string, rawFlags []rawFlag) ([]byte, error) {
 	files := ParseTopLevelFilesInDirectory(i.parser, dir)
 	i.TerraformModule = BuildModule(dir, files, DetectVarFiles(rawFlags)...)
-	variables, _ := ParseVariables(i.TerraformModule, env, rawFlags)
+	variables, _ := ParseInputVariables(i.TerraformModule, env, rawFlags)
 	//TODO handle diags
 
-	merged := i.TerraformModule.MergeVariables(variables)
-	return Convert(i.TerraformModule, Options{Simplify: true, ContextVars: merged})
+	i.TerraformModule.vars = i.TerraformModule.MergeVariableValues(variables)
+	resolveModuleCallVars(i.TerraformModule, i.TerraformModule.vars)
+
+	return Convert(i.TerraformModule, Options{Simplify: true})
+}
+
+func resolveModuleCallVars(terraformModule *TerraformModule, vars variableMap) {
+	for _, moduleCall := range terraformModule.moduleCalls {
+		varMap := make(variableMap)
+		for varName, expr := range moduleCall.InputValues {
+			context := (&evalContext).NewChild()
+			context.Variables = vars
+			value, err := expr.Value(context)
+			if err != nil {
+				log.Printf("Err while parsing module call var: %s", err)
+			} else {
+				varMap[varName] = value
+			}
+		}
+		terraformModule.childModules[moduleCall.Name].vars = createVarMap(make(variableMap), varMap)
+	}
 }
 
 func ParseTopLevelFilesInDirectory(parser *hclparse.Parser, dir string) map[string]*hcl.File {

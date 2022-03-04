@@ -3,6 +3,7 @@ package terraform
 import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
+	"log"
 )
 
 // ModuleCall represents a "module" block in a module or file.
@@ -25,15 +26,17 @@ type ModuleCall struct {
 
 	//DependsOn []hcl.Traversal
 
-	DeclRange hcl.Range
+	DeclRange   hcl.Range
+	InputValues map[string]hcl.Expression
 }
 
 func decodeModuleBlock(block *hcl.Block, override bool) (ModuleCall, hcl.Diagnostics) {
 	var diags hcl.Diagnostics
 
 	mc := ModuleCall{
-		Name:      block.Labels[0],
-		DeclRange: block.DefRange,
+		Name:        block.Labels[0],
+		DeclRange:   block.DefRange,
+		InputValues: make(map[string]hcl.Expression, 0),
 	}
 
 	schema := moduleBlockSchema
@@ -196,7 +199,17 @@ func decodeModuleBlock(block *hcl.Block, override bool) (ModuleCall, hcl.Diagnos
 
 	//TODO handle all the variables, any attribute other
 	// than the well-known attributes that are described in the schema can be processed as variables
+	attributes, err := remain.JustAttributes()
+	if err != nil {
+		log.Println(err)
+	}
+	for _, attribute := range attributes {
+		if contains([]string{"source", "version", "count", "for_each", "providers", "depends_on", "lifecycle"}, attribute.Name) {
+			continue
+		}
 
+		mc.InputValues[attribute.Name] = attribute.Expr
+	}
 	return mc, diags
 }
 

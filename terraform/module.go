@@ -20,6 +20,7 @@ type TerraformModule struct {
 	moduleCalls  []ModuleCall
 	dir          string
 	childModules map[string]*TerraformModule
+	vars         variableMap
 }
 
 type TerraformFile struct {
@@ -76,7 +77,7 @@ func (m *TerraformModule) addFile(hclFile *hcl.File, body *hcl.BodyContent, file
 		}
 	}
 }
-func (m *TerraformModule) MergeVariables(inputs map[string]*InputValue) map[string]cty.Value {
+func (m *TerraformModule) MergeVariableValues(inputs map[string]*InputValue) map[string]cty.Value {
 	ret := make(variableMap)
 
 	vars := make(variableMap)
@@ -90,7 +91,7 @@ func (m *TerraformModule) MergeVariables(inputs map[string]*InputValue) map[stri
 	for name, inputValue := range inputs {
 		vars[name] = inputValue.Value
 	}
-	ret["var"] = cty.ObjectVal(vars)
+	createVarMap(ret, vars)
 
 	locals := make(variableMap)
 
@@ -101,5 +102,10 @@ func (m *TerraformModule) MergeVariables(inputs map[string]*InputValue) map[stri
 
 	ret["local"] = cty.ObjectVal(locals)
 
+	return ret
+}
+
+func createVarMap(ret variableMap, vars variableMap) variableMap {
+	ret["var"] = cty.ObjectVal(vars)
 	return ret
 }
