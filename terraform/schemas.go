@@ -14,3 +14,11 @@ var tfFileVariableSchema = &hcl.BodySchema{
 		},
 	},
 }
+
+var tfFileLocalSchema = &hcl.BodySchema{
+	Blocks: []hcl.BlockHeaderSchema{
+		{
+			Type: "locals",
+		},
+	},
+}

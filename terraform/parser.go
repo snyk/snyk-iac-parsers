@@ -32,14 +32,18 @@ type NewParserParams struct {
 
 type JSON = map[string]interface{}
 
+func NewParserVariables(variables ModuleVariables) ValueMap {
+	return ValueMap{
+		"var":   cty.ObjectVal(variables.inputs),
+		"local": cty.ObjectVal(variables.locals),
+	}
+}
+
 func NewParser(params NewParserParams) Parser {
 	return Parser{
-		bytes: params.bytes,
-		variables: ValueMap{
-			"var":   cty.ObjectVal(params.variables.inputs),
-			"local": cty.ObjectVal(params.variables.locals),
-		},
-		options: params.options,
+		bytes:     params.bytes,
+		variables: NewParserVariables(params.variables),
+		options:   params.options,
 	}
 }
 
