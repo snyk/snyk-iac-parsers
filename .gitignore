@@ -5,3 +5,4 @@ dist/
 cover.out
 tmp/
 scripts/opa/opa
+package-lock.json
