@@ -47,7 +47,7 @@ jobs:
   regression-test-linux:
     <<: *defaults
     docker:
-      - image: circleci/golang:1.17
+      - image: cimg/go:1.17.2
     steps:
       - checkout
       - build
@@ -63,7 +63,7 @@ jobs:
       - test
   security-oss:
     docker:
-      - image: cimg/go:1.17.2 
+      - image: cimg/go:1.17.2
     steps:
       - checkout
       - snyk/scan:
@@ -73,7 +73,7 @@ jobs:
           organization: snyk-iac-group-seceng
   security-code:
     docker:
-      - image: cimg/go:1.17.2 
+      - image: cimg/go:1.17.2
     steps:
       - checkout
       - snyk/scan:
