@@ -1,0 +1,48 @@
+name: Release package
+
+on:
+  push:
+    branches:
+      - 'main'
+
+jobs:
+  build:
+    name: Push Latest Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Setup node
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+
+      - name: Install release-it
+        run: npm i -g release-it@v14.12.5 @release-it/conventional-changelog
+
+      - name: Push new tag and release
+        run: |
+          echo "Computing tag using semver..."
+          echo 'deb [trusted=yes] https://apt.fury.io/caarlos0/ /' | sudo tee /etc/apt/sources.list.d/caarlos0.list
+          sudo apt update
+          sudo apt install svu=1.7.0
+          TAG=$(svu)
+          echo "Checking if a release should be done..."    
+          if [ $(git tag -l "$TAG") ]; then
+            echo "Tag ${TAG} already exists!"
+            echo "Commit must not generate a new release"
+          else
+            echo "Tag ${TAG} does not exist!"
+            echo "Releasing a new tag ${TAG} with our commits..."
+          
+            # Hard-code user config
+            git config user.email "snyksec@users.noreply.github.com"
+            git config user.name "Snyk"
+  
+            release-it
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_ACCESS_TOKEN }}

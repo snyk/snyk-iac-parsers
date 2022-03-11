@@ -31,13 +31,6 @@ Tests can be run using the `go test` command:
 
 Before committing code should be formatted with `go fmt` and linted with `golangci-lint run`. The CircleCI runner will enforce this for each opened pull request.
 
-## Release
-
-For now the release process is manual. Follow the steps below to create a new version of the `github.com/snyk/snyk-iac-parsers` package:
-1. Retrieve the latest tag from https://github.com/snyk/snyk-iac-parsers/tags (e.g. `v0.0.5`).
-2. Create a new tag by running `git tag -a v0.0.6 -m "Relase v0.0.6"`
-3. Push the tag by running `git push origin v0.0.6`
-
 ## Contributing
 
 This project is developed in open as a dependency of the [snyk/snyk-iac-rules](https://github.com/snyk/snyk-iac-rules) project. Should you wish to make a contribution please open a pull request against this repository with a clear description of the change with tests demonstrating the functionality. You will also need to agree to the [Contributor Agreement](./Contributor-Agreement.md) before the code can be accepted and merged.
