@@ -37,4 +37,4 @@ This project is developed in open as a dependency of the [snyk/snyk-iac-rules](h
 
 ## License
 
-Available under the [Apache License, Version 2.0](./LICENSE.md)
+Available under the [Mozilla Public License 2.0](./LICENSE.md)
