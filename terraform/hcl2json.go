@@ -1,8 +1,6 @@
 package terraform
 
 import (
-	"encoding/json"
-
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
@@ -39,60 +37,6 @@ func ParseModule(rawFiles map[string]interface{}) map[string]interface{} {
 		"failedFiles": parseRes.failedFiles,
 		"debugLogs":   parseRes.debugLogs,
 	}
-}
-
-// extractInputVariables extracts the input variables values from the provided file
-var extractInputVariables = func(file File) (ValueMap, error) {
-	if isValidInputVariablesFile(file.fileName) {
-		fileInputVariablesMap, diagnostics := extractInputVariablesFromFile(file)
-		if diagnostics.HasErrors() {
-			return ValueMap{}, createInvalidHCLError(diagnostics.Errs())
-		}
-		return fileInputVariablesMap, nil
-	}
-	return ValueMap{}, nil
-}
-
-var extractVariables = func(file File) (ValueMap, ExpressionMap, error) {
-	inputsMap, err := extractInputVariables(file)
-	if err != nil {
-		return inputsMap, ExpressionMap{}, err
-	}
-	fileLocals, err := extractLocals(file)
-	return inputsMap, fileLocals, err
-}
-
-// extractLocals extracts the input values from the provided file
-var extractLocals = func(file File) (ExpressionMap, error) {
-	if isValidTerraformFile(file.fileName) {
-		localsExprsMap, diagnostics := extractLocalsFromFile(file)
-		if diagnostics.HasErrors() {
-			return ExpressionMap{}, createInvalidHCLError(diagnostics.Errs())
-		}
-
-		return localsExprsMap, nil
-	}
-	return ExpressionMap{}, nil
-}
-
-// ParseHclToJson parses a provided HCL file to JSON and dereferences any known variables using the provided variables
-func ParseHclToJson(fileName string, fileContent string, variables ModuleVariables) (string, error) {
-	file, diagnostics := hclsyntax.ParseConfig([]byte(fileContent), fileName, hcl.Pos{Line: 1, Column: 1})
-	if diagnostics.HasErrors() {
-		return "", createInvalidHCLError(diagnostics.Errs())
-	}
-
-	parsedFile, err := parseFile(file, variables)
-	if err != nil {
-		return "", createInternalHCLParsingError([]error{err})
-	}
-
-	jsonBytes, err := json.MarshalIndent(parsedFile, "", "\t")
-	if err != nil {
-		return "", createInternalJSONParsingError([]error{err})
-	}
-
-	return string(jsonBytes), nil
 }
 
 func processFiles(rawFiles map[string]interface{}, parseRes *ParseModuleResult) map[string]File {
@@ -145,7 +89,7 @@ func extractModuleVariables(files map[string]File, parseRes *ParseModuleResult) 
 	localExprsMap := ExpressionMap{}
 
 	for fileName, file := range files {
-		inputsMap, fileLocals, err := extractVariables(file)
+		inputsMap, localsMap, err := extractVariables(file)
 		if err != nil {
 			// skip non-user errors
 			if isUserError(err) {
@@ -154,7 +98,7 @@ func extractModuleVariables(files map[string]File, parseRes *ParseModuleResult) 
 			}
 		}
 		inputsByFile[fileName] = inputsMap
-		for localName, localVal := range fileLocals {
+		for localName, localVal := range localsMap {
 			localExprsMap[localName] = localVal
 		}
 	}
@@ -171,4 +115,6 @@ func extractModuleVariables(files map[string]File, parseRes *ParseModuleResult) 
 	}
 }
 
-var parseHclToJson = ParseHclToJson // used for mocking in the tests
+// used for mocking in the tests
+var parseHclToJson = ParseHclToJson
+var extractVariables = ExtractVariables

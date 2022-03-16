@@ -19,6 +19,27 @@ type ModuleVariables struct {
 
 type InputVariablesByFile map[string]ValueMap
 
+// ExtractVariables extracts the input variables and local values from the provided file
+func ExtractVariables(file File) (ValueMap, ExpressionMap, error) {
+	inputsMap := ValueMap{}
+	localsMap := ExpressionMap{}
+	var hclDiags hcl.Diagnostics
+
+	if isValidInputVariablesFile(file.fileName) {
+		var inputHclDiags hcl.Diagnostics
+		inputsMap, hclDiags = extractInputVariablesFromFile(file)
+		hclDiags = append(hclDiags, inputHclDiags...)
+	}
+
+	if isValidTerraformFile(file.fileName) {
+		var localsHclDiags hcl.Diagnostics
+		localsMap, localsHclDiags = extractLocalsFromFile(file)
+		hclDiags = append(hclDiags, localsHclDiags...)
+	}
+	
+	return inputsMap, localsMap, hclDiags
+}
+
 func extractInputVariablesFromFile(file File) (ValueMap, hcl.Diagnostics) {
 	var inputVariables ValueMap
 	var hclDiags hcl.Diagnostics
