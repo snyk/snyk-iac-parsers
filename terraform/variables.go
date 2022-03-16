@@ -17,8 +17,6 @@ type ModuleVariables struct {
 	locals ValueMap
 }
 
-type ParserVariables map[string]ValueMap
-
 type InputVariablesByFile map[string]ValueMap
 
 func extractInputVariablesFromFile(file File) (ValueMap, hcl.Diagnostics) {
@@ -126,7 +124,7 @@ func dereferenceLocals(localExprsMap ExpressionMap, inputs ValueMap) ValueMap {
 	for i := 0; i < maxLocalsDerefIterations; i++ {
 		for localName, localExpr := range localExprsMap {
 			newLocalVal, hclDiags := localExpr.Value(&hcl.EvalContext{
-				Variables: NewParserVariables(ModuleVariables{
+				Variables: createValueMap(ModuleVariables{
 					inputs: inputs,
 					locals: currLocalVals,
 				}),
@@ -140,6 +138,7 @@ func dereferenceLocals(localExprsMap ExpressionMap, inputs ValueMap) ValueMap {
 			currLocalVals[localName] = newLocalVal
 		}
 
+		// stop if the local values haven't changed between dereferencing loops
 		if reflect.DeepEqual(currLocalVals, prevLocalVals) {
 			break
 		}
@@ -150,4 +149,11 @@ func dereferenceLocals(localExprsMap ExpressionMap, inputs ValueMap) ValueMap {
 	}
 
 	return currLocalVals
+}
+
+func createValueMap(variables ModuleVariables) ValueMap {
+	return ValueMap{
+		"var":   cty.ObjectVal(variables.inputs),
+		"local": cty.ObjectVal(variables.locals),
+	}
 }

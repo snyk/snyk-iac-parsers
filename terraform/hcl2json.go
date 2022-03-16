@@ -19,7 +19,7 @@ type ParseModuleResult struct {
 	debugLogs   map[string]interface{}
 }
 
-// ParseModule iterated through all the provided files in a module (.tf, terraform.tfvars, and *.auto.tfvars files)
+// ParseModule iterates through all the provided files in a module (.tf, terraform.tfvars, and *.auto.tfvars files)
 // It extracts the variables from each one, merges them, and dereferences them one by one
 func ParseModule(rawFiles map[string]interface{}) map[string]interface{} {
 	parseRes := &ParseModuleResult{
@@ -43,22 +43,36 @@ func ParseModule(rawFiles map[string]interface{}) map[string]interface{} {
 
 // extractInputVariables extracts the input variables values from the provided file
 var extractInputVariables = func(file File) (ValueMap, error) {
-	fileInputVariablesMap, diagnostics := extractInputVariablesFromFile(file)
-	if diagnostics.HasErrors() {
-		return ValueMap{}, createInvalidHCLError(diagnostics.Errs())
+	if isValidInputVariablesFile(file.fileName) {
+		fileInputVariablesMap, diagnostics := extractInputVariablesFromFile(file)
+		if diagnostics.HasErrors() {
+			return ValueMap{}, createInvalidHCLError(diagnostics.Errs())
+		}
+		return fileInputVariablesMap, nil
 	}
+	return ValueMap{}, nil
+}
 
-	return fileInputVariablesMap, nil
+var extractVariables = func(file File) (ValueMap, ExpressionMap, error) {
+	inputsMap, err := extractInputVariables(file)
+	if err != nil {
+		return inputsMap, ExpressionMap{}, err
+	}
+	fileLocals, err := extractLocals(file)
+	return inputsMap, fileLocals, err
 }
 
 // extractLocals extracts the input values from the provided file
 var extractLocals = func(file File) (ExpressionMap, error) {
-	localsExprsMap, diagnostics := extractLocalsFromFile(file)
-	if diagnostics.HasErrors() {
-		return ExpressionMap{}, createInvalidHCLError(diagnostics.Errs())
-	}
+	if isValidTerraformFile(file.fileName) {
+		localsExprsMap, diagnostics := extractLocalsFromFile(file)
+		if diagnostics.HasErrors() {
+			return ExpressionMap{}, createInvalidHCLError(diagnostics.Errs())
+		}
 
-	return localsExprsMap, nil
+		return localsExprsMap, nil
+	}
+	return ExpressionMap{}, nil
 }
 
 // ParseHclToJson parses a provided HCL file to JSON and dereferences any known variables using the provided variables
@@ -128,44 +142,27 @@ func parseModuleFiles(files map[string]File, vars ModuleVariables, parseRes *Par
 
 func extractModuleVariables(files map[string]File, parseRes *ParseModuleResult) ModuleVariables {
 	inputsByFile := InputVariablesByFile{}
+	localExprsMap := ExpressionMap{}
 
 	for fileName, file := range files {
-		if isValidInputVariablesFile(fileName) {
-			inputsMap, err := extractInputVariables(file)
-			if err != nil {
-				// skip non-user errors
-				if isUserError(err) {
-					parseRes.debugLogs[fileName] = GenerateDebugLogs(err)
-					parseRes.failedFiles[fileName] = err.Error()
-				}
-				continue
+		inputsMap, fileLocals, err := extractVariables(file)
+		if err != nil {
+			// skip non-user errors
+			if isUserError(err) {
+				parseRes.debugLogs[fileName] = GenerateDebugLogs(err)
+				parseRes.failedFiles[fileName] = err.Error()
 			}
-			inputsByFile[fileName] = inputsMap
+		}
+		inputsByFile[fileName] = inputsMap
+		for localName, localVal := range fileLocals {
+			localExprsMap[localName] = localVal
 		}
 	}
 
 	// merge inputs so they can be used across multiple files
 	inputsMap := mergeInputVariables(inputsByFile)
 
-	localExprsMap := ExpressionMap{}
-	for fileName, file := range files {
-		if isValidTerraformFile(fileName) {
-			fileLocals, err := extractLocals(file)
-			if err != nil {
-				// skip non-user errors
-				if isUserError(err) {
-					parseRes.debugLogs[fileName] = GenerateDebugLogs(err)
-					parseRes.failedFiles[fileName] = err.Error()
-				}
-				continue
-			}
-
-			for localName, localVal := range fileLocals {
-				localExprsMap[localName] = localVal
-			}
-		}
-	}
-
+	// dereference locals in case they referenec each other or other input variables
 	localsMap := dereferenceLocals(localExprsMap, inputsMap)
 
 	return ModuleVariables{
