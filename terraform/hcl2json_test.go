@@ -324,13 +324,6 @@ variable "dummy" {
 					dummy = "Dummy Value"
 				}`,
 			},
-			parseErr: &CustomError{
-				message: "Internal error",
-				errors: []error{
-					errors.New("Test"),
-				},
-				userError: false,
-			},
 			expected: map[string]interface{}{
 				"failedFiles": map[string]interface{}{},
 				"parsedFiles": map[string]interface{}{
@@ -366,13 +359,6 @@ variable "dummy" {
 					cidr_blocks = local.dummy
 				}`,
 			},
-			parseErr: &CustomError{
-				message: "Internal error",
-				errors: []error{
-					errors.New("Test"),
-				},
-				userError: false,
-			},
 			expected: map[string]interface{}{
 				"failedFiles": map[string]interface{}{},
 				"parsedFiles": map[string]interface{}{"test.tf": `{
@@ -406,13 +392,6 @@ variable "dummy" {
 				locals {
 					dummy = max(1+1, 999)
 				}`,
-			},
-			parseErr: &CustomError{
-				message: "Internal error",
-				errors: []error{
-					errors.New("Test"),
-				},
-				userError: false,
 			},
 			expected: map[string]interface{}{
 				"failedFiles": map[string]interface{}{},
@@ -453,13 +432,6 @@ variable "dummy" {
 					default = "Dummy Value"
 					type   = "string"
 				}`,
-			},
-			parseErr: &CustomError{
-				message: "Internal error",
-				errors: []error{
-					errors.New("Test"),
-				},
-				userError: false,
 			},
 			expected: map[string]interface{}{
 				"failedFiles": map[string]interface{}{},
@@ -516,13 +488,6 @@ locals {
 	d1 = var.dummy
 }`,
 			},
-			parseErr: &CustomError{
-				message: "Internal error",
-				errors: []error{
-					errors.New("Test"),
-				},
-				userError: false,
-			},
 			expected: map[string]interface{}{
 				"failedFiles": map[string]interface{}{},
 				"parsedFiles": map[string]interface{}{
@@ -558,6 +523,144 @@ locals {
 		"d9": 9
 	}
 }`},
+				"debugLogs": map[string]interface{}{},
+			},
+		},
+		{
+			name: "Correctly dereferencing local variable that references other local variables in a function",
+			files: map[string]interface{}{
+				"test1.tf": `
+resource "aws_security_group" "allow_ssh" {
+	name        = "allow_ssh"
+	description = "Allow SSH inbound from anywhere"
+	cidr_blocks = local.d3
+}
+
+locals {
+	d3 = local.d2 > local.d1 ? (local.d2 - local.d1) : (local.d1 - local.d2)
+	d2 = 2
+	d1 = 1
+}`},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{
+					"test1.tf": `{
+	"locals": {
+		"d1": 1,
+		"d2": 2,
+		"d3": 1
+	},
+	"resource": {
+		"aws_security_group": {
+			"allow_ssh": {
+				"cidr_blocks": 1,
+				"description": "Allow SSH inbound from anywhere",
+				"name": "allow_ssh"
+			}
+		}
+	}
+}`},
+				"debugLogs": map[string]interface{}{},
+			},
+		},
+		{
+			name: "Correctly stopping to dereference local variable that references too many other local variables",
+			files: map[string]interface{}{
+				"test1.tf": `
+resource "aws_security_group" "allow_ssh" {
+	name        = "allow_ssh"
+	description = "Allow SSH inbound from anywhere"
+	cidr_blocks = local.d34
+}
+
+locals {
+	d34 = local.d33 + 1
+	d33 = local.d32 + 1
+	d32 = local.d31 + 1
+	d31 = local.d30 + 1
+	d30 = local.d29 + 1
+	d29 = local.d28 + 1
+	d28 = local.d27 + 1
+	d27 = local.d26 + 1
+	d26 = local.d25 + 1
+	d25 = local.d24 + 1
+	d24 = local.d23 + 1
+	d23 = local.d22 + 1
+	d22 = local.d21 + 1
+	d21 = local.d20 + 1
+	d20 = local.d19 + 1
+	d19 = local.d18 + 1
+	d18 = local.d17 + 1
+	d17 = local.d16 + 1
+	d16 = local.d15 + 1
+	d15 = local.d14 + 1
+	d14 = local.d13 + 1
+	d13 = local.d12 + 1
+	d12 = local.d11 + 1
+	d11 = local.d10 + 1
+	d10 = local.d9 + 1
+	d9 = local.d8 + 1
+	d8 = local.d7 + 1
+	d7 = local.d6 + 1
+	d6 = local.d5 + 1
+	d5 = local.d4 + 1
+	d4 = local.d3 + 1
+	d3 = local.d2 + 1
+	d2 = local.d1 + 1
+	d1 = 1
+}`,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{
+					"test1.tf": `{
+	"locals": {
+		"d1": 1,
+		"d10": 10,
+		"d11": 11,
+		"d12": 12,
+		"d13": 13,
+		"d14": 14,
+		"d15": 15,
+		"d16": 16,
+		"d17": 17,
+		"d18": 18,
+		"d19": 19,
+		"d2": 2,
+		"d20": 20,
+		"d21": 21,
+		"d22": 22,
+		"d23": 23,
+		"d24": 24,
+		"d25": 25,
+		"d26": 26,
+		"d27": 27,
+		"d28": 28,
+		"d29": 29,
+		"d3": 3,
+		"d30": 30,
+		"d31": 31,
+		"d32": 32,
+		"d33": 33,
+		"d34": "${local.d33 + 1}",
+		"d4": 4,
+		"d5": 5,
+		"d6": 6,
+		"d7": 7,
+		"d8": 8,
+		"d9": 9
+	},
+	"resource": {
+		"aws_security_group": {
+			"allow_ssh": {
+				"cidr_blocks": "${local.d34}",
+				"description": "Allow SSH inbound from anywhere",
+				"name": "allow_ssh"
+			}
+		}
+	}
+}`,
+				},
 				"debugLogs": map[string]interface{}{},
 			},
 		},

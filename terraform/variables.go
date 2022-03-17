@@ -36,7 +36,7 @@ func ExtractVariables(file File) (ValueMap, ExpressionMap, error) {
 		localsMap, localsHclDiags = extractLocalsFromFile(file)
 		hclDiags = append(hclDiags, localsHclDiags...)
 	}
-	
+
 	return inputsMap, localsMap, hclDiags
 }
 
@@ -140,7 +140,7 @@ var maxLocalsDerefIterations = 32
 
 func dereferenceLocals(localExprsMap ExpressionMap, inputs ValueMap) ValueMap {
 	currLocalVals := ValueMap{}
-	prevLocalVals := ValueMap{}
+	nextLocalVals := ValueMap{}
 
 	for i := 0; i < maxLocalsDerefIterations; i++ {
 		for localName, localExpr := range localExprsMap {
@@ -152,24 +152,26 @@ func dereferenceLocals(localExprsMap ExpressionMap, inputs ValueMap) ValueMap {
 				Functions: terraformFunctions,
 			})
 
+			// the local cannot be dereferenced so move onto the next one
 			if !newLocalVal.IsKnown() || hclDiags.HasErrors() {
 				continue
 			}
 
-			currLocalVals[localName] = newLocalVal
+			// a local has been dereferenced so store it in the
+			nextLocalVals[localName] = newLocalVal
 		}
 
 		// stop if the local values haven't changed between dereferencing loops
-		if reflect.DeepEqual(currLocalVals, prevLocalVals) {
+		if reflect.DeepEqual(currLocalVals, nextLocalVals) {
 			break
 		}
 
-		for localName, localVal := range currLocalVals {
-			prevLocalVals[localName] = localVal
+		for localName, localVal := range nextLocalVals {
+			currLocalVals[localName] = localVal
 		}
 	}
 
-	return currLocalVals
+	return nextLocalVals
 }
 
 func createValueMap(variables ModuleVariables) ValueMap {

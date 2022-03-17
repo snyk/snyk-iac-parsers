@@ -103,15 +103,15 @@ func extractModuleVariables(files map[string]File, parseRes *ParseModuleResult) 
 		}
 	}
 
-	// merge inputs so they can be used across multiple files
-	inputsMap := mergeInputVariables(inputsByFile)
+	// merge inputs so they can be prioritised and used across multiple files
+	inputs := mergeInputVariables(inputsByFile)
 
-	// dereference locals in case they referenec each other or other input variables
-	localsMap := dereferenceLocals(localExprsMap, inputsMap)
+	// dereference locals in case they reference each other or other input variables
+	locals := dereferenceLocals(localExprsMap, inputs)
 
 	return ModuleVariables{
-		inputs: inputsMap,
-		locals: localsMap,
+		inputs: inputs,
+		locals: locals,
 	}
 }
 
