@@ -85,7 +85,7 @@ func parseModuleFiles(files map[string]File, vars ModuleVariables, parseRes *Par
 }
 
 func extractModuleVariables(files map[string]File, parseRes *ParseModuleResult) ModuleVariables {
-	inputsByFile := InputVariablesByFile{}
+	inputExprsByFile := InputVariablesByFile{}
 	localExprsMap := ExpressionMap{}
 
 	for fileName, file := range files {
@@ -97,22 +97,17 @@ func extractModuleVariables(files map[string]File, parseRes *ParseModuleResult) 
 				parseRes.failedFiles[fileName] = err.Error()
 			}
 		}
-		inputsByFile[fileName] = inputsMap
+		inputExprsByFile[fileName] = inputsMap
 		for localName, localVal := range localsMap {
 			localExprsMap[localName] = localVal
 		}
 	}
 
 	// merge inputs so they can be prioritised and used across multiple files
-	inputs := mergeInputVariables(inputsByFile)
+	inputsExprsMap := mergeInputVariables(inputExprsByFile)
 
 	// dereference locals in case they reference each other or other input variables
-	locals := dereferenceLocals(localExprsMap, inputs)
-
-	return ModuleVariables{
-		inputs: inputs,
-		locals: locals,
-	}
+	return dereferenceVariables(localExprsMap, inputsExprsMap)
 }
 
 // used for mocking in the tests

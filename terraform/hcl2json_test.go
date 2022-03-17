@@ -685,7 +685,7 @@ locals {
 				defer func() {
 					extractVariables = oldExtractVariables
 				}()
-				extractVariables = func(file File) (ValueMap, ExpressionMap, error) {
+				extractVariables = func(file File) (ExpressionMap, ExpressionMap, error) {
 					if file.fileName == "fail.tf" {
 						return nil, nil, tc.extractErr
 					}
