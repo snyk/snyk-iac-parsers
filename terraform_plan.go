@@ -91,7 +91,7 @@ func parseTerraformPlan(planJson TerraformPlanJson, isFullScan bool) TerraformSc
 		}
 		mode := "resource"
 		// only update the references in resources that have some resolved attributes already
-		if resolvedResource, ok := scanInput[mode][resource.Type][getResourceName(resource)].(map[string]interface{}); ok {
+		if resolvedResource, ok := scanInput[mode][resource.Type][getResourceName(resource)].(map[string]interface{}); ok && resolvedResource != nil {
 			expressions := getExpressions(resource.Expressions)
 			for k, v := range expressions {
 				// only add non existing attributes. If we already have resolved value do not overwrite it with reference
