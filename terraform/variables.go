@@ -2,6 +2,7 @@ package terraform
 
 import (
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -120,9 +121,16 @@ func mergeInputVariables(inputVariablesByFile InputVariablesByFile) ValueMap {
 	combinedInputVariables := make(ValueMap)
 
 	fileNames := make([]string, 0, len(inputVariablesByFile))
+
 	for fileName := range inputVariablesByFile {
 		fileNames = append(fileNames, fileName)
 	}
+
+	// The order of iteration over maps is not deterministic. In order for this
+	// function to return deterministic results, sort the slice of file names
+	// first.
+
+	sort.Strings(fileNames)
 
 	prioritisedFileNames := orderFilesByPriority(fileNames)
 
