@@ -2,23 +2,40 @@ package parsers
 
 import (
 	"encoding/json"
+
 	"github.com/pkg/errors"
-	hcl2jsonConverter "github.com/tmccombs/hcl2json/convert"
+	"github.com/snyk/snyk-iac-parsers/terraform"
 )
 
 // ParseHCL2 unmarshals HCL files that are written using
 // version 2 of the HCL language and return parsed file content.
 func ParseHCL2(p []byte, v interface{}) (err error) {
-	// TODO: Look into using plain github.com/hashicorp/hcl/v2
-	// instead to avoid the JSON intermediary format.
+	result := terraform.ParseModule(map[string]interface{}{
+		"foo.tf": string(p),
+	})
 
-	jsonBytes, err := hcl2jsonConverter.Bytes(p, "", hcl2jsonConverter.Options{})
-	if err != nil {
-		return errors.Wrap(err, "hcl2 to json conversion failed")
+	parsedFiles, ok := result["parsedFiles"]
+	if !ok {
+		return errors.Errorf("no parsed files returned")
 	}
 
-	if err := json.Unmarshal(jsonBytes, v); err != nil {
-		return errors.Wrap(err, "unmarshal hcl2 json failed")
+	parsedFilesMap, ok := parsedFiles.(map[string]interface{})
+	if !ok {
+		return errors.Errorf("invalid parsed files format")
+	}
+
+	parsed, ok := parsedFilesMap["foo.tf"]
+	if !ok {
+		return errors.Errorf("parse file")
+	}
+
+	parsedString, ok := parsed.(string)
+	if !ok {
+		return errors.Errorf("invalid parse result type")
+	}
+
+	if err := json.Unmarshal([]byte(parsedString), v); err != nil {
+		return errors.Errorf("unmarshal parse result: %v", err)
 	}
 
 	return nil
