@@ -20,8 +20,8 @@ jobs:
         with:
           node-version: "14"
 
-      - name: Install release-it
-        run: npm i release-it@v14.12.5 @release-it/conventional-changelog
+      - name: Install dependencies
+        run: npm install
 
       - name: Push new tag and release
         run: |
