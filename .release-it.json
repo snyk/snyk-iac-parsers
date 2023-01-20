@@ -16,5 +16,9 @@
   },
   "hooks": {
     "after:bump": ""
+  },
+  "npm": {
+    "publish": false,
+    "ignoreVersion": true
   }
 }
