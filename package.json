@@ -1,0 +1,7 @@
+{
+  "name": "snyk-iac-parsers",
+  "devDependencies": {
+    "@release-it/conventional-changelog": "^5.1.1",
+    "release-it": "^15.6.0"
+  }
+}
