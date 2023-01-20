@@ -41,6 +41,7 @@ jobs:
             # Hard-code user config
             git config user.email "snyksec@users.noreply.github.com"
             git config user.name "Snyk"
+            git status
 
             npx release-it
           fi
