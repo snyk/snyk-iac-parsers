@@ -1,9 +1,14 @@
 # Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.
-version: v1.22.1
+version: v1.25.0
 # ignores vulnerabilities until expiry date; change duration by modifying expiry date
 ignore:
   'snyk:lic:golang:github.com:hashicorp:hcl:v2:MPL-2.0':
     - '*':
-        reason: "Project is distributed with unmodified hashicorp/hcl dependency"
+        reason: Project is distributed with unmodified hashicorp/hcl dependency
         created: 2021-11-29T12:19:52.899Z
+  SNYK-GOLANG-GOLANGORGXSYSUNIX-3310442:
+    - '*':
+        reason: Dependencies cannot all be upgraded to versions that depend on a fixed version of golang.org/x/sys
+        expires: 2023-04-08T12:45:32.291Z
+        created: 2023-02-06T12:45:32.297Z
 patch: {}
