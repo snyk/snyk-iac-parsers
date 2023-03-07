@@ -3,7 +3,7 @@ module opa
 go 1.17
 
 require (
-	github.com/open-policy-agent/opa v0.43.0
+	github.com/open-policy-agent/opa v0.43.1
 	github.com/snyk/snyk-iac-parsers v0.0.0-00010101000000-000000000000
 )
 
