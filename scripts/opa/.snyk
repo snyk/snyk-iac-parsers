@@ -5,5 +5,5 @@ ignore:
   'snyk:lic:golang:github.com:hashicorp:hcl:v2:MPL-2.0':
     - '*':
         reason: Project is distributed with unmodified hashicorp/hcl dependency
-        created: 2021-11-29T12:19:52.899Z
+        created: 2023-03-08T11:27:37.312Z
 patch: {}
