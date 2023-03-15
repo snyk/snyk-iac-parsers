@@ -47,7 +47,7 @@ jobs:
   regression-test-linux:
     <<: *defaults
     docker:
-      - image: cimg/go:1.17.2
+      - image: cimg/go:1.18.4
     steps:
       - checkout
       - build
