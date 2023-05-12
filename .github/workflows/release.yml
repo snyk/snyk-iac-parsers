@@ -39,7 +39,7 @@ jobs:
             echo "Releasing a new tag ${TAG} with our commits..."
 
             # Hard-code user config
-            git config user.email "snyksec@users.noreply.github.com"
+            git config user.email "cloud-config-ro@users.noreply.github.com"
             git config user.name "Snyk"
             git status
 
