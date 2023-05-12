@@ -91,11 +91,11 @@ workflows:
       - security-oss:
           name: Snyk oss
           context:
-            - snyk-iac-seceng
+            - snyk-cloud-dev-ex
       - security-code:
           name: Snyk code
           context:
-            - snyk-iac-seceng
+            - snyk-cloud-dev-ex
       - regression-test-linux:
           name: Regression Test (Linux)
       - regression-test-windows:
