@@ -3,6 +3,7 @@ version: 2.1
 orbs:
   snyk: snyk/snyk@1.1.1
   win: circleci/windows@2.4
+  prodsec: snyk/prodsec-orb@1.0.2
 
 defaults: &defaults
   working_directory: ~/snyk-iac-parsers
@@ -86,6 +87,11 @@ workflows:
   version: 2
   test:
     jobs:
+      - prodsec/secrets-scan:
+          name: Scan Repository for Secrets
+          context:
+            - snyk-bot-slack
+          channel: group-infrastructure-as-code-alerts
       - lint_and_format:
           name: Lint & formatting
       - security-oss:
