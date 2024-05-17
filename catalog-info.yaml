@@ -7,7 +7,7 @@ metadata:
   annotations:
     github.com/project-slug: snyk/snyk-iac-parsers
     circleci.com/project-slug: github/snyk/snyk-iac-parsers
-    github.com/team-slug: snyk/cloud-dev-ex
+    github.com/team-slug: snyk/iac
   description: < A Golang library that exposes functions for parsing YAML, HCL2, Terraform (including variable dereferencing) and Terraform Plan (JSON) files.
   labels:
     snyk.io/businessCriticality: medium
@@ -16,4 +16,4 @@ metadata:
 spec:
   type: external-library
   lifecycle: "-"
-  owner: cloud-dev-ex
+  owner: iac
