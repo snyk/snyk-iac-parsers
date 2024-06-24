@@ -3,7 +3,7 @@ version: 2.1
 orbs:
   snyk: snyk/snyk@1.1.1
   win: circleci/windows@2.4
-  prodsec: snyk/prodsec-orb@1.0.2
+  prodsec: snyk/prodsec-orb@1
 
 defaults: &defaults
   working_directory: ~/snyk-iac-parsers
@@ -62,27 +62,15 @@ jobs:
       - checkout
       - build
       - test
-  security-oss:
+  security-scans:
+    resource_class: small
     docker:
-      - image: cimg/go:1.17.2
+      - image: cimg/go:1.18.4
     steps:
       - checkout
-      - snyk/scan:
-          severity-threshold: medium 
-          monitor-on-build: false
-          project: ${CIRCLE_PROJECT_REPONAME}
-          organization: cloud-cloud
-  security-code:
-    docker:
-      - image: cimg/go:1.17.2
-    steps:
-      - checkout
-      - snyk/scan:
-          command: code test
-          severity-threshold: medium 
-          monitor-on-build: false
-          project: ${CIRCLE_PROJECT_REPONAME}
-          organization: cloud-cloud
+      - prodsec/security_scans:
+          mode: auto
+
 workflows:
   version: 2
   test:
@@ -92,16 +80,12 @@ workflows:
           context:
             - snyk-bot-slack
           channel: group-infrastructure-as-code-alerts
+      - security-scans:
+          name: Security Scans
+          context:
+            - analysis-iac
       - lint_and_format:
           name: Lint & formatting
-      - security-oss:
-          name: Snyk oss
-          context:
-            - snyk-cloud-dev-ex
-      - security-code:
-          name: Snyk code
-          context:
-            - snyk-cloud-dev-ex
       - regression-test-linux:
           name: Regression Test (Linux)
       - regression-test-windows:
