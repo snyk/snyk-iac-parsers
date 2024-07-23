@@ -519,6 +519,19 @@ block "label_one" {
 `,
 			expected: "Invalid HCL provided",
 		},
+		{
+			name: "Disallowed function",
+			input: `
+resource "aws_s3_bucket" "aoeu" {
+  bucket = "docs"
+  acl = "public - read"
+  tags = {
+    mytag = file ("/etc/passwd")
+  }
+}
+`,
+			expected: "Attempted to call disallowed function",
+		},
 	}
 
 	for _, tc := range tests {

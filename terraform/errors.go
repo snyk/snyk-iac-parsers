@@ -56,3 +56,11 @@ func createInternalJSONParsingError(errors []error) *CustomError {
 		userError: false,
 	}
 }
+
+func createDisallowedFunctionError(errors []error) *CustomError {
+	return &CustomError{
+		message:   "Attempted to call disallowed function",
+		errors:    errors,
+		userError: true,
+	}
+}

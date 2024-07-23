@@ -2,6 +2,7 @@ package terraform
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -50,6 +51,10 @@ func ParseHclToJson(fileName string, fileContent string, variables ModuleVariabl
 
 	parsedFile, err := parseFile(file, variables)
 	if err != nil {
+		var ce *CustomError
+		if errors.As(err, &ce) {
+			return "", ce
+		}
 		return "", createInternalHCLParsingError([]error{err})
 	}
 
@@ -193,6 +198,8 @@ func (parser *Parser) parseExpression(expr hclsyntax.Expression) (interface{}, e
 			}
 		}
 		return out, nil
+	case *hclsyntax.FunctionCallExpr:
+		return parser.parseFunctionCall(value)
 	default:
 		return parser.wrapExpr(expr), nil
 	}
@@ -308,6 +315,14 @@ func (parser *Parser) parseTemplateFor(expr *hclsyntax.ForExpr) (string, error) 
 	builder.WriteString("%{endfor}")
 
 	return builder.String(), nil
+}
+
+func (parser *Parser) parseFunctionCall(expr *hclsyntax.FunctionCallExpr) (string, error) {
+	if _, found := disallowedTerraformFunctions[expr.Name]; found {
+		return "", createDisallowedFunctionError([]error{fmt.Errorf("function not allowed: %s", expr.Name)})
+	}
+
+	return parser.wrapExpr(expr), nil
 }
 
 func (parser *Parser) wrapExpr(expr hclsyntax.Expression) string {

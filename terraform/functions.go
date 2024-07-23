@@ -53,3 +53,19 @@ var terraformFunctions = map[string]function.Function{
 	"formatdate": stdlib.FormatDateFunc,
 	"timeadd":    stdlib.TimeAddFunc,
 }
+
+// Set of functions which should not be allowed as their execution can be a
+// security vulnerability.  Currently, this list is just the contents of the
+// "Filesystem Functions" section in the TF docs:
+// https://developer.hashicorp.com/terraform/language/functions/list
+var disallowedTerraformFunctions = map[string]bool{
+	"abspath":      true,
+	"dirname":      true,
+	"pathexpand":   true,
+	"basename":     true,
+	"file":         true,
+	"fileexists":   true,
+	"fileset":      true,
+	"filebase64":   true,
+	"templatefile": true,
+}
