@@ -74,9 +74,10 @@ func parseModuleFiles(files map[string]File, vars ModuleVariables, parseRes *Par
 			if err != nil {
 				// skip non-user errors
 				if isUserError(err) {
-					parseRes.debugLogs[fileName] = GenerateDebugLogs(err)
 					parseRes.failedFiles[fileName] = err.Error()
 				}
+				// but still log them
+				parseRes.debugLogs[fileName] = GenerateDebugLogs(err)
 				continue
 			}
 			parseRes.parsedFiles[fileName] = parsedJson
