@@ -307,7 +307,55 @@ variable "dummy" {
 				"parsedFiles": map[string]interface{}{
 					"test2.tf": jsonOutput,
 				},
-				"debugLogs": map[string]interface{}{},
+				"debugLogs": map[string]interface{}{
+					"fail.tf": "\nTest",
+				},
+			},
+		},
+		// Test added for https://snyksec.atlassian.net/browse/IAC-3138
+		{
+			name: "Multiple files and one file with internal error at parse time caused by a panic in the parser code",
+			files: map[string]interface{}{
+				"fail.tf": `
+resource "aws_ssm_document" "set_db_parameters_for_restoration" {
+  count           = var.enabled ? 1 : 0
+  name            = join("-", [module.label.id, "set-db-parameters-for-restoration"])
+  document_type   = "Automation"
+  document_format = "YAML"
+  target_type     = "/AWS::RDS::DBCluster"
+  content = <<DOC
+---
+schemaVersion: '0.3'
+description: 'Set the database cluster ${local.database_identifier} to the parameter group optimized for restauration of large databases.'
+assumeRole: '{{ AutomationAssumeRole }}'
+parameters:
+  AutomationAssumeRole:
+    type: String
+    description: 'The ARN of the role that allows Automation to perform the actions on your behalf.'
+mainSteps:
+  - name: set_db_parameters_for_restoration
+    action: 'aws:executeAwsApi'
+    onFailure: Abort
+    inputs:
+      Service: rds
+      Api: ModifyDBInstance
+      DBInstanceIdentifier: '${local.database_identifier}'
+      DBParameterGroupName: '${var.enabled ? aws_db_parameter_group.restore_maintenance[0].id : null}'
+      ApplyImmediately: True
+    isEnd: true
+DOC
+  tags = module.label.tags
+}`,
+				"test2.tf": fileContent,
+			},
+			expected: map[string]interface{}{
+				"failedFiles": map[string]interface{}{},
+				"parsedFiles": map[string]interface{}{
+					"test2.tf": jsonOutput,
+				},
+				"debugLogs": map[string]interface{}{
+					"fail.tf": "\npanic: value is null",
+				},
 			},
 		},
 		{
@@ -319,7 +367,7 @@ variable "dummy" {
 					description = "Allow SSH inbound from anywhere"
 					cidr_blocks = local.dummy
 				}
-				
+
 				locals {
 					dummy = "Dummy Value"
 				}`,
@@ -388,7 +436,7 @@ variable "dummy" {
 					description = "Allow SSH inbound from anywhere"
 					cidr_blocks = local.dummy
 				}
-				
+
 				locals {
 					dummy = max(1+1, 999)
 				}`,
@@ -423,11 +471,11 @@ variable "dummy" {
 					description = "Allow SSH inbound from anywhere"
 					cidr_blocks = local.dummy
 				}
-				
+
 				locals {
 					dummy = var.dummy
 				}
-				
+
 				variable "dummy" {
 					default = "Dummy Value"
 					type   = "string"

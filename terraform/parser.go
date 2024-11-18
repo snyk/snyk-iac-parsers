@@ -48,9 +48,21 @@ func ParseHclToJson(fileName string, fileContent string, variables ModuleVariabl
 		return "", createInvalidHCLError(diagnostics.Errs())
 	}
 
-	parsedFile, err := parseFile(file, variables)
-	if err != nil {
-		return "", createInternalHCLParsingError([]error{err})
+	var parsedFile interface{}
+	var parseErr error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				// Convert parser panic into an error
+				parseErr = fmt.Errorf("panic: %v", r)
+			}
+		}()
+		parsedFile, parseErr = parseFile(file, variables) // Call parseFile
+
+	}()
+
+	if parseErr != nil {
+		return "", createInternalHCLParsingError([]error{parseErr})
 	}
 
 	jsonBytes, err := json.MarshalIndent(parsedFile, "", "\t")
