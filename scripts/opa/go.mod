@@ -1,8 +1,6 @@
 module opa
 
-go 1.21
-
-toolchain go1.21.1
+go 1.26.10
 
 require (
 	github.com/open-policy-agent/opa v0.64.1
